@@ -1,0 +1,35 @@
+{
+  "grammars": [
+    {
+      "name": "fun",
+      "camelcase": "Fun",
+      "scope": "source.fun",
+      "file-types": [
+        ".fun"
+      ],
+      "injection-regex": "^fun$"
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "A purely fun-ctional language with amazing performance",
+    "authors": [
+      {
+        "name": "Matan Tsuberi",
+        "email": "tsuberim@gmail.com"
+      }
+    ],
+    "links": {
+      "repository": "https://github.com/tsuberim/fun"
+    }
+  },
+  "bindings": {
+    "c": true,
+    "go": true,
+    "node": true,
+    "python": true,
+    "rust": true,
+    "swift": true
+  }
+}
