@@ -1,0 +1,122 @@
+===
+integer
+===
+42
+---
+(source_file (int))
+
+===
+string
+===
+`foo`
+---
+(source_file (str))
+
+===
+string template
+===
+`{2} bananas`
+---
+(source_file (str (int)))
+
+===
+variable
+===
+my_var
+---
+(source_file (var))
+
+===
+symbol
+===
+$@$
+---
+(source_file (sym))
+
+===
+function application
+===
+foo(1,`bar`)
+---
+(source_file (app (var) (int) (str)))
+
+===
+infix function application
+===
+a $@$ b
+---
+(source_file (iapp (var) (sym) (var)))
+
+===
+function declaration
+===
+\x, y, z -> 42
+---
+(source_file (lam (var) (var) (var) (int)))
+
+===
+record
+===
+{name: `Matan`, age: 28}
+---
+(source_file (rec (var) (str) (var) (int)))
+
+===
+property
+===
+x.name
+---
+(source_file (prop (var) (var)))
+
+===
+constructor
+===
+Celsius 42
+---
+(source_file (cons (int)))
+
+===
+when
+===
+when x is Person h -> h; else 5
+---
+(source_file (when (var) (var) (var) (int)))
+
+===
+list
+===
+[1,`asdf`, Celsius 42]
+---
+(source_file (list (int) (str) (cons (int))))
+
+
+===
+list at index
+===
+[1,`asdf`, Celsius 42] @ 4
+---
+(source_file (iapp (list (int) (str) (cons (int))) (sym) (int)))
+
+
+===
+parenthesis
+===
+(4)
+---
+(source_file (block (int)))
+
+===
+block
+===
+(
+    a = 4
+    b = a
+    b
+)
+---
+(source_file (block (var) (int) (var) (var) (var)))
+
+
+
+
+
