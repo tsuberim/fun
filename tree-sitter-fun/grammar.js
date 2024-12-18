@@ -24,7 +24,7 @@ module.exports = grammar({
 
   rules: {
     // TODO: add the actual grammar rules
-    source_file: $ => $._expr,
+    source_file: $ => $._inner_block,
     _expr: $ => choice($.int, $.str, $.var, $.sym, $.app, $.iapp, $.lam, $.rec, $.prop, $.cons, $.when, $.list, $.block),
     int: $ => /\d+/,
     str: $ => seq('`',repeat(choice(/[^`{}]+/, seq('{', $._expr, '}'))),'`'),
@@ -35,10 +35,11 @@ module.exports = grammar({
     lam: $ => seq('\\', sep($.var, ','), '->', $._expr),
     rec: $ => seq('{', sep(seq($.var, ':', $._expr), ','), '}'),
     prop: $ => prec.left(3, seq($._expr, '.',$.var)),
-    cons: $ => seq(consName, $._expr),
-    when: $ => prec.right(6,seq('when', $._expr, 'is', sep1(seq(consName, $.var, '->', $._expr), ';'),optional(seq(';', 'else', $._expr)))),
+    cons: $ => prec.left(4,seq(consName, optional($._expr))),
+    when: $ => prec.right(6,seq('when', $._expr, 'is', sep1(seq(consName, optional($.var), '->', $._expr), ';'),optional(seq(';', 'else', $._expr)))),
     list: $ => seq('[', sep($._expr, ','), ']'),
-    block: $ => prec.left(5,seq('(', repeat(seq($.var, '=', $._expr, '\n')), $._expr,')')),
+    _inner_block: $ => seq(repeat(seq($.var, '=', $._expr, '\n')), $._expr),
+    block: $ => prec.left(5,seq('(', $._inner_block, ')')),
   },
 
   words: ['when']

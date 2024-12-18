@@ -1,14 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	tree_sitter_fun "fun/tree-sitter-fun/bindings/go"
 	"github.com/llir/llvm/ir"
 	"github.com/llir/llvm/ir/constant"
 	"github.com/llir/llvm/ir/types"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
-	//tree_sitter_fun "github.com/tsuberim/fun/tree-sitter-fun/bindings/go"
-	//tree_sitter_fun "github.com/tsuberim/fun/bindings/go"
+	"os"
 )
 
 func main() {
@@ -41,4 +41,38 @@ func main() {
 
 	root := tree.RootNode()
 	fmt.Println(root.ToSexp())
+
+	err = repl()
+	if err != nil {
+		panic(err)
+	}
+}
+
+func repl() error {
+	reader := bufio.NewReader(os.Stdin)
+
+	parser := tree_sitter.NewParser()
+	defer parser.Close()
+	err := parser.SetLanguage(tree_sitter.NewLanguage(tree_sitter_fun.Language()))
+	if err != nil {
+		return err
+	}
+
+	for {
+		print("fun>")
+		bs, _, err := reader.ReadLine()
+		if err != nil {
+			return err
+		}
+		tree := parser.Parse(bs, nil)
+
+		root := tree.RootNode()
+		if root.HasError() {
+			println("ERR")
+		} else {
+			println(root.ToSexp())
+		}
+
+		tree.Close()
+	}
 }

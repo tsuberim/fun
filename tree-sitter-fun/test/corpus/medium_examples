@@ -1,0 +1,46 @@
+===
+simple program
+===
+f = \x, y -> (
+        x + y
+    )
+person = {name: `Matan`, age: f(24,4), is_child: False}
+qualifier = when person.is_child is False -> `a child`; else `{person.age} years old`
+`My name is {person.name} and I'm {qualifier}`
+---
+ (source_file
+      (var)
+      (lam
+        (var)
+        (var)
+        (block (iapp
+          (var)
+          (sym)
+          (var))))
+      (var)
+      (rec
+        (var)
+        (str)
+        (var)
+        (app
+          (var)
+          (int)
+          (int))
+        (var)
+        (cons))
+      (var)
+      (when
+        (prop
+          (var)
+          (var))
+        (str)
+        (str
+          (prop
+            (var)
+            (var))))
+      (str
+        (prop
+          (var)
+          (var))
+        (var)))
+
