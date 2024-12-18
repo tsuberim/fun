@@ -604,6 +604,10 @@
           "named": true
         },
         {
+          "type": "lit_str",
+          "named": true
+        },
+        {
           "type": "prop",
           "named": true
         },
@@ -756,6 +760,10 @@
   {
     "type": "is",
     "named": false
+  },
+  {
+    "type": "lit_str",
+    "named": true
   },
   {
     "type": "sym",

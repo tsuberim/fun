@@ -59,7 +59,7 @@ func repl() error {
 	}
 
 	for {
-		print("fun>")
+		print(">")
 		bs, _, err := reader.ReadLine()
 		if err != nil {
 			return err
@@ -73,6 +73,15 @@ func repl() error {
 			println(root.ToSexp())
 		}
 
+		node := root.NamedChild(0)
+		expr, err := fromTree(node, bs)
 		tree.Close()
+
+		if err != nil {
+			println(err.Error())
+			continue
+		}
+
+		fmt.Printf("%#+v\n", expr)
 	}
 }
