@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/scylladb/go-set/strset"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 	"strconv"
 	"strings"
@@ -293,6 +294,7 @@ func fromNode(node *tree_sitter.Node, source []byte) (Expr, error) {
 	case "rec":
 		var entires []RecEntry
 
+		names := strset.New()
 		prop := true
 		entry := RecEntry{}
 		for _, child := range node.NamedChildren(node.Walk()) {
@@ -308,6 +310,10 @@ func fromNode(node *tree_sitter.Node, source []byte) (Expr, error) {
 				}
 
 				entry.Prop = p.Name
+				if names.Has(p.Name) {
+					return nil, fmt.Errorf("duplicate record prop name: %s", p.Name)
+				}
+				names.Add(p.Name)
 			} else {
 				entry.Value = expr
 				entires = append(entires, entry)
@@ -372,10 +378,17 @@ func fromNode(node *tree_sitter.Node, source []byte) (Expr, error) {
 		}
 
 		count := node.NamedChildCount()
+
+		cases := strset.New()
 		var options []WhenClause
 		i := uint(1)
 		for i+3 <= count {
 			cons := node.NamedChild(i).Utf8Text(source)
+			if cases.Has(cons) {
+				return nil, fmt.Errorf("duplciate when clause cons name: %s", cons)
+			}
+			cases.Add(cons)
+
 			payloadVar, err := fromNode(node.NamedChild(i+1), source)
 			if err != nil {
 				return nil, err
@@ -389,6 +402,7 @@ func fromNode(node *tree_sitter.Node, source []byte) (Expr, error) {
 			if err != nil {
 				return nil, err
 			}
+
 			options = append(options, WhenClause{
 				ConsName:    cons,
 				Payload:     v.Name,

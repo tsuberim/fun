@@ -24,6 +24,7 @@ type Type interface {
 
 func (t *TypeCons) typ() {}
 func (t *TypeVar) typ()  {}
+func (t *TypeRec) typ()  {}
 
 type TypeCons struct {
 	Name string
@@ -78,6 +79,71 @@ func (t *TypeVar) apply(subst *Subst) Type {
 	}
 
 	return t
+}
+
+type TypeRec struct {
+	Entries map[string]Type
+	RestVar *TypeVar
+	Union   bool
+}
+
+func (t *TypeRec) Pretty(indent int) string {
+	keys := lo.Keys(t.Entries)
+	sort.Strings(keys)
+	var entries []string
+	for _, key := range keys {
+		if t.Union {
+			entries = append(entries, fmt.Sprintf("%s %s", key, t.Entries[key].Pretty(indent)))
+		} else {
+			entries = append(entries, fmt.Sprintf("%s: %s", key, t.Entries[key].Pretty(indent)))
+		}
+	}
+
+	if t.Union {
+		if t.RestVar != nil {
+			return fmt.Sprintf("[%s |%s]", strings.Join(entries, " | "), t.RestVar.Pretty(indent))
+		}
+		return fmt.Sprintf("[%s]", strings.Join(entries, " | "))
+	} else {
+		if t.RestVar != nil {
+			return fmt.Sprintf("{%s |%s}", strings.Join(entries, ", "), t.RestVar.Pretty(indent))
+		}
+		return fmt.Sprintf("{%s}", strings.Join(entries, ", "))
+	}
+}
+
+func (t *TypeRec) freeVars() *strset.Set {
+	result := strset.New()
+	for _, t := range t.Entries {
+		result.Merge(t.freeVars())
+	}
+	if t.RestVar != nil {
+		result.Add(t.RestVar.Name)
+	}
+	return result
+}
+
+func (t *TypeRec) apply(subst *Subst) Type {
+	newRec := &TypeRec{Entries: map[string]Type{}, RestVar: t.RestVar, Union: t.Union}
+	for name, t := range t.Entries {
+		newRec.Entries[name] = t.apply(subst)
+	}
+
+	if t.RestVar != nil {
+		rest := t.RestVar.apply(subst)
+		if tvar, ok := rest.(*TypeVar); ok {
+			newRec.RestVar = tvar
+		} else if trec, ok := rest.(*TypeRec); ok {
+			for name, t := range trec.Entries {
+				newRec.Entries[name] = t
+			}
+			newRec.RestVar = trec.RestVar
+		} else {
+			panic("impossible type record rest type")
+		}
+	}
+
+	return newRec
 }
 
 type Scheme struct {
@@ -138,7 +204,7 @@ func bind(tvarName string, t Type) (*Subst, error) {
 
 }
 
-func unify(t1, t2 Type) (*Subst, error) {
+func (i *Inferrer) unify(t1, t2 Type) (*Subst, error) {
 	if tvar, ok := t1.(*TypeVar); ok {
 		return bind(tvar.Name, t2)
 	}
@@ -147,16 +213,101 @@ func unify(t1, t2 Type) (*Subst, error) {
 		return bind(tvar.Name, t1)
 	}
 
-	cons1 := t1.(*TypeCons)
-	cons2 := t2.(*TypeCons)
+	if cons1, ok := t1.(*TypeCons); ok {
+		cons2, ok := t2.(*TypeCons)
+		if !ok {
+			return nil, fmt.Errorf("incompatible types %s ~!~ %s", t1.Pretty(0), t2.Pretty(0))
+		}
 
+		return i.unifyCons(cons1, cons2)
+	}
+
+	if rec1, ok := t1.(*TypeRec); ok {
+		rec2, ok := t2.(*TypeRec)
+		if !ok {
+			return nil, fmt.Errorf("incompatible types %s ~!~ %s", t1.Pretty(0), t2.Pretty(0))
+		}
+
+		return i.unifyRecs(rec1, rec2)
+	}
+
+	return nil, fmt.Errorf("incompatible types %s ~!~ %s", t1.Pretty(0), t2.Pretty(0))
+}
+
+func (i *Inferrer) unifyRecs(rec1 *TypeRec, rec2 *TypeRec) (*Subst, error) {
+	if rec1.Union != rec2.Union {
+		return nil, fmt.Errorf("incompatible types %s ~!~ %s", rec1.Pretty(0), rec2.Pretty(0))
+	}
+	union := rec1.Union
+
+	keys1 := strset.New(lo.Keys(rec1.Entries)...)
+	keys2 := strset.New(lo.Keys(rec2.Entries)...)
+	intersection := strset.Intersection(keys1, keys2)
+
+	subst := &Subst{Subst: map[string]Type{}}
+	for _, key := range intersection.List() {
+		s, err := i.unify(rec1.Entries[key], rec2.Entries[key])
+		if err != nil {
+			return nil, err
+		}
+		subst = subst.compose(s)
+	}
+
+	keys1MinusKeys2 := strset.Difference(keys1, keys2)
+	keys2MinusKeys1 := strset.Difference(keys2, keys1)
+	open := rec1.RestVar != nil && rec2.RestVar != nil
+	assignableToT1 := keys2MinusKeys1.IsEmpty() || rec1.RestVar != nil
+	assignableToT2 := keys1MinusKeys2.IsEmpty() || rec2.RestVar != nil
+	fresh := i.freshVar()
+	if open || (assignableToT2 && assignableToT1) {
+		if rec1.RestVar != nil {
+			entries2 := map[string]Type{}
+			for _, key := range keys2MinusKeys1.List() {
+				entries2[key] = rec2.Entries[key]
+			}
+
+			s, err := i.unify(rec1.RestVar, &TypeRec{
+				Entries: entries2,
+				RestVar: fresh,
+				Union:   union,
+			})
+			if err != nil {
+				return nil, err
+			}
+			subst = subst.compose(s)
+		}
+
+		if rec2.RestVar != nil {
+			entries1 := map[string]Type{}
+			for _, key := range keys1MinusKeys2.List() {
+				entries1[key] = rec1.Entries[key]
+			}
+
+			s, err := i.unify(rec2.RestVar, &TypeRec{
+				Entries: entries1,
+				RestVar: fresh,
+				Union:   union,
+			})
+			if err != nil {
+				return nil, err
+			}
+			subst = subst.compose(s)
+		}
+	} else {
+		return nil, fmt.Errorf("incompatible types %s ~!~ %s", rec1.Pretty(0), rec2.Pretty(0))
+	}
+
+	return subst, nil
+}
+
+func (i *Inferrer) unifyCons(cons1, cons2 *TypeCons) (*Subst, error) {
 	if cons1.Name != cons2.Name || len(cons1.Args) != len(cons2.Args) {
 		return nil, fmt.Errorf("incompatible types %s ~!~ %s", cons1.Pretty(0), cons2.Pretty(0))
 	}
 
 	subst := &Subst{Subst: map[string]Type{}}
-	for i := range len(cons1.Args) {
-		s, err := unify(cons1.Args[i].apply(subst), cons2.Args[i].apply(subst))
+	for idx := range len(cons1.Args) {
+		s, err := i.unify(cons1.Args[idx].apply(subst), cons2.Args[idx].apply(subst))
 		if err != nil {
 			return nil, err
 		}
@@ -241,7 +392,7 @@ func (i *Inferrer) Infer(expr Expr, env *TypeEnv) (subst *Subst, typ Type, err e
 
 			subst = subst.compose(s)
 
-			s, err = unify(t, &TypeCons{
+			s, err = i.unify(t, &TypeCons{
 				Name: "str",
 				Args: nil,
 			})
@@ -315,7 +466,7 @@ func (i *Inferrer) Infer(expr Expr, env *TypeEnv) (subst *Subst, typ Type, err e
 		subst = subst.compose(s)
 
 		args = append(args, resultVar)
-		s, err = unify(t.apply(subst), &TypeCons{
+		s, err = i.unify(t.apply(subst), &TypeCons{
 			Name: lambdaConsName,
 			Args: args,
 		})
@@ -338,7 +489,7 @@ func (i *Inferrer) Infer(expr Expr, env *TypeEnv) (subst *Subst, typ Type, err e
 
 			subst = subst.compose(s)
 
-			s, err = unify(t, fresh)
+			s, err = i.unify(t, fresh)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -353,15 +504,124 @@ func (i *Inferrer) Infer(expr Expr, env *TypeEnv) (subst *Subst, typ Type, err e
 			Args: []Type{itemType},
 		}, nil
 	case *Rec:
+		recType := &TypeRec{
+			Entries: map[string]Type{},
+			RestVar: nil, // not open
+			Union:   false,
+		}
+
+		for _, entry := range expr.Entries {
+			env = env.apply(subst)
+			s, t, err := i.Infer(entry.Value, env)
+			if err != nil {
+				return nil, nil, err
+			}
+			subst = subst.compose(s)
+			recType.Entries[entry.Prop] = t
+		}
+
+		return subst, recType.apply(subst), nil
 	case *Prop:
+		s, t, err := i.Infer(expr.Parent, env)
+		if err != nil {
+			return nil, nil, err
+		}
+		subst = subst.compose(s)
+
+		resultVar := i.freshVar()
+		s, err = i.unify(t, &TypeRec{
+			Entries: map[string]Type{expr.Prop: resultVar},
+			RestVar: i.freshVar(),
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+		subst = subst.compose(s)
+		return subst, resultVar.apply(subst), nil
 	case *Cons:
 		s, t, err := i.Infer(expr.Payload, env)
 		if err != nil {
 			return nil, nil, err
 		}
 		subst = subst.compose(s)
-		return subst, &TypeCons{Name: expr.Name, Args: []Type{t.apply(subst)}}, nil
+		return subst, &TypeRec{
+			Entries: map[string]Type{
+				expr.Name: t.apply(subst),
+			},
+			RestVar: i.freshVar(),
+			Union:   true,
+		}, nil
 	case *When:
+		var resultType Type = i.freshVar()
+
+		s, valueType, err := i.Infer(expr.Value, env)
+		if err != nil {
+			return nil, nil, err
+		}
+		subst = subst.compose(s)
+		valueType = valueType.apply(subst)
+
+		for _, clause := range expr.Options {
+			env = env.apply(subst)
+			fresh := i.freshVar()
+			s, t, err := i.Infer(clause.Consequence, env.extend(clause.Payload, &Scheme{
+				Forall: nil,
+				Type:   fresh,
+			}))
+			if err != nil {
+				return nil, nil, err
+			}
+			subst = subst.compose(s)
+
+			var restVar *TypeVar
+			if expr.Else != nil {
+				restVar = i.freshVar()
+			}
+			s, err = i.unify(valueType, &TypeRec{
+				Entries: map[string]Type{clause.ConsName: fresh},
+				RestVar: restVar,
+				Union:   true,
+			})
+			if err != nil {
+				return nil, nil, err
+			}
+
+			subst = subst.compose(s)
+			resultType = resultType.apply(subst)
+			s, err = i.unify(resultType, t.apply(subst))
+			if err != nil {
+				return nil, nil, err
+			}
+			subst = subst.compose(s)
+		}
+
+		if expr.Else != nil {
+			s, t, err := i.Infer(expr.Else, env)
+			if err != nil {
+				return nil, nil, err
+			}
+			subst = subst.compose(s)
+			t = t.apply(subst)
+
+			s, err = i.unify(valueType, &TypeRec{
+				Entries: map[string]Type{},
+				RestVar: i.freshVar(), // open set
+				Union:   true,
+			})
+			if err != nil {
+				return nil, nil, err
+			}
+			subst = subst.compose(s)
+
+			resultType = resultType.apply(subst)
+			s, err = i.unify(resultType, t.apply(subst))
+			if err != nil {
+				return nil, nil, err
+			}
+			subst = subst.compose(s)
+		}
+
+		return subst, resultType.apply(subst), nil
 	case *Block:
 		for _, assignment := range expr.Assignments {
 			env = env.apply(subst)

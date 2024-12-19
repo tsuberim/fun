@@ -91,14 +91,6 @@ func repl() error {
 
 		println("Expr: ", expr.Pretty(0))
 
-		val, err := Eval(expr, stdlib)
-		if err != nil {
-			println(err.Error())
-			continue
-		}
-
-		println("Value: ", val.Pretty(0))
-
 		inferrer := NewInferrer()
 		_, t, err := inferrer.Infer(expr, &TypeEnv{Types: map[string]*Scheme{
 			"+": {
@@ -128,5 +120,13 @@ func repl() error {
 		}
 		scheme := generalize(t)
 		println("Type: ", scheme.Pretty(0))
+
+		val, err := Eval(expr, stdlib)
+		if err != nil {
+			println(err.Error())
+			continue
+		}
+
+		println("Value: ", val.Pretty(0))
 	}
 }
