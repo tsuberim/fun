@@ -4,48 +4,55 @@ import (
 	"bufio"
 	"fmt"
 	tree_sitter_fun "fun/tree-sitter-fun/bindings/go"
-	"github.com/llir/llvm/ir"
-	"github.com/llir/llvm/ir/constant"
-	"github.com/llir/llvm/ir/types"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 	"os"
 )
 
+var stdlib = map[string]Val{
+	"+": &Builtin{
+		Name: "+",
+		Impl: func(args []Val) (Val, error) {
+			sum := 0
+			for _, arg := range args {
+				i, ok := arg.(*Int)
+				if !ok {
+					return nil, fmt.Errorf("invalid sum value type %t", arg)
+				}
+
+				sum += i.Value
+			}
+
+			return &Int{Value: sum}, nil
+		},
+	},
+}
+
 func main() {
-	// Create a new LLVM IR module.
-	m := ir.NewModule()
-	hello := constant.NewCharArrayFromString("Hello, world!\n\x00")
-	str := m.NewGlobalDef("str", hello)
-	// Add external function declaration of puts.
-	puts := m.NewFunc("puts", types.I32, ir.NewParam("", types.NewPointer(types.I8)))
-	main := m.NewFunc("main", types.I32)
-	entry := main.NewBlock("")
-	// Cast *[15]i8 to *i8.
-	zero := constant.NewInt(types.I64, 0)
-	gep := constant.NewGetElementPtr(hello.Typ, str, zero, zero)
-	entry.NewCall(puts, gep)
-	entry.NewRet(constant.NewInt(types.I32, 0))
-	fmt.Println(m)
+	if len(os.Args) > 1 {
+		filename := os.Args[0]
+		source, err := os.ReadFile(filename)
+		parser := tree_sitter.NewParser()
+		defer parser.Close()
+		err = parser.SetLanguage(tree_sitter.NewLanguage(tree_sitter_fun.Language()))
+		if err != nil {
+			panic(err)
+		}
 
-	code := []byte("hello")
+		tree := parser.Parse(source, nil)
+		node := tree.RootNode()
+		expr, err := fromNode(node, source)
+		if err != nil {
+			panic(err)
+		}
 
-	parser := tree_sitter.NewParser()
-	defer parser.Close()
-	err := parser.SetLanguage(tree_sitter.NewLanguage(tree_sitter_fun.Language()))
-	if err != nil {
-		panic(err)
+		fmt.Println(expr.Pretty(0))
+	} else {
+		err := repl()
+		if err != nil {
+			panic(err)
+		}
 	}
 
-	tree := parser.Parse(code, nil)
-	defer tree.Close()
-
-	root := tree.RootNode()
-	fmt.Println(root.ToSexp())
-
-	err = repl()
-	if err != nil {
-		panic(err)
-	}
 }
 
 func repl() error {
@@ -74,7 +81,7 @@ func repl() error {
 		}
 
 		node := root.NamedChild(0)
-		expr, err := fromTree(node, bs)
+		expr, err := fromNode(node, bs)
 		tree.Close()
 
 		if err != nil {
@@ -82,6 +89,44 @@ func repl() error {
 			continue
 		}
 
-		fmt.Printf("%#+v\n", expr)
+		println("Expr: ", expr.Pretty(0))
+
+		val, err := Eval(expr, stdlib)
+		if err != nil {
+			println(err.Error())
+			continue
+		}
+
+		println("Value: ", val.Pretty(0))
+
+		inferrer := NewInferrer()
+		_, t, err := inferrer.Infer(expr, &TypeEnv{Types: map[string]*Scheme{
+			"+": {
+				Forall: nil,
+				Type: &TypeCons{
+					Name: lambdaConsName,
+					Args: []Type{
+						&TypeCons{
+							Name: "int",
+							Args: nil,
+						},
+						&TypeCons{
+							Name: "int",
+							Args: nil,
+						},
+						&TypeCons{
+							Name: "int",
+							Args: nil,
+						},
+					},
+				},
+			},
+		}})
+		if err != nil {
+			println(err.Error())
+			continue
+		}
+		scheme := generalize(t)
+		println("Type: ", scheme.Pretty(0))
 	}
 }
