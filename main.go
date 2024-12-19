@@ -1,9 +1,9 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	tree_sitter_fun "fun/tree-sitter-fun/bindings/go"
+	"github.com/maxott/go-repl"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 	"os"
 )
@@ -27,17 +27,40 @@ var stdlib = map[string]Val{
 	},
 }
 
+var typeEnv = &TypeEnv{Types: map[string]*Scheme{
+	"+": {
+		Forall: nil,
+		Type: &TypeCons{
+			Name: lambdaConsName,
+			Args: []Type{
+				&TypeCons{
+					Name: "int",
+					Args: nil,
+				},
+				&TypeCons{
+					Name: "int",
+					Args: nil,
+				},
+				&TypeCons{
+					Name: "int",
+					Args: nil,
+				},
+			},
+		},
+	},
+}}
+
 func main() {
+	parser := tree_sitter.NewParser()
+	defer parser.Close()
+	err := parser.SetLanguage(tree_sitter.NewLanguage(tree_sitter_fun.Language()))
+	if err != nil {
+		panic(err)
+	}
+
 	if len(os.Args) > 1 {
 		filename := os.Args[0]
 		source, err := os.ReadFile(filename)
-		parser := tree_sitter.NewParser()
-		defer parser.Close()
-		err = parser.SetLanguage(tree_sitter.NewLanguage(tree_sitter_fun.Language()))
-		if err != nil {
-			panic(err)
-		}
-
 		tree := parser.Parse(source, nil)
 		node := tree.RootNode()
 		expr, err := fromNode(node, source)
@@ -47,7 +70,8 @@ func main() {
 
 		fmt.Println(expr.Pretty(0))
 	} else {
-		err := repl()
+		r := repl.NewRepl(&ReplHandler{parser})
+		err := r.Loop()
 		if err != nil {
 			panic(err)
 		}
@@ -55,78 +79,39 @@ func main() {
 
 }
 
-func repl() error {
-	reader := bufio.NewReader(os.Stdin)
+type ReplHandler struct {
+	parser *tree_sitter.Parser
+}
 
-	parser := tree_sitter.NewParser()
-	defer parser.Close()
-	err := parser.SetLanguage(tree_sitter.NewLanguage(tree_sitter_fun.Language()))
+func (r *ReplHandler) Prompt() string {
+	return ">"
+}
+
+func (r *ReplHandler) Eval(buffer string) string {
+	source := []byte(buffer)
+	tree := r.parser.Parse(source, nil)
+	node := tree.RootNode()
+	expr, err := fromNode(node, source)
 	if err != nil {
-		return err
+		return fmt.Sprintf("ParseError: %s", err)
 	}
 
-	for {
-		print(">")
-		bs, _, err := reader.ReadLine()
-		if err != nil {
-			return err
-		}
-		tree := parser.Parse(bs, nil)
-
-		root := tree.RootNode()
-		if root.HasError() {
-			println("ERR")
-		} else {
-			println(root.ToSexp())
-		}
-
-		node := root.NamedChild(0)
-		expr, err := fromNode(node, bs)
-		tree.Close()
-
-		if err != nil {
-			println(err.Error())
-			continue
-		}
-
-		println("Expr: ", expr.Pretty(0))
-
-		inferrer := NewInferrer()
-		_, t, err := inferrer.Infer(expr, &TypeEnv{Types: map[string]*Scheme{
-			"+": {
-				Forall: nil,
-				Type: &TypeCons{
-					Name: lambdaConsName,
-					Args: []Type{
-						&TypeCons{
-							Name: "int",
-							Args: nil,
-						},
-						&TypeCons{
-							Name: "int",
-							Args: nil,
-						},
-						&TypeCons{
-							Name: "int",
-							Args: nil,
-						},
-					},
-				},
-			},
-		}})
-		if err != nil {
-			println(err.Error())
-			continue
-		}
-		scheme := generalize(t)
-		println("Type: ", scheme.Pretty(0))
-
-		val, err := Eval(expr, stdlib)
-		if err != nil {
-			println(err.Error())
-			continue
-		}
-
-		println("Value: ", val.Pretty(0))
+	inferrer := NewInferrer()
+	_, t, err := inferrer.Infer(expr, typeEnv)
+	if err != nil {
+		return fmt.Sprintf("TypeError: %s", err)
 	}
+	scheme := generalize(t)
+
+	val, err := Eval(expr, stdlib)
+	if err != nil {
+		return fmt.Sprintf("ValueError: %s", err)
+	}
+
+	return fmt.Sprintf("%s : %s", val.Pretty(0), scheme.Pretty(0))
+}
+
+func (r *ReplHandler) Tab(buffer string) string {
+	// TODO: use tree-sitter to complete?
+	return ""
 }

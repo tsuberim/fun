@@ -112,7 +112,7 @@ func (r *Rec) Pretty(indent int) string {
 	for _, entry := range r.Entries {
 		entries = append(entries, entry.Pretty(indent))
 	}
-	return dent(indent, fmt.Sprintf("{%s}", strings.Join(entries, ",\n")))
+	return dent(indent, fmt.Sprintf("{%s}", strings.Join(entries, ", ")))
 }
 
 type Prop struct {
@@ -202,6 +202,9 @@ func (b *Block) Pretty(indent int) string {
 }
 
 func fromNode(node *tree_sitter.Node, source []byte) (Expr, error) {
+	if node.HasError() {
+		return nil, fmt.Errorf("parse error")
+	}
 	if node == nil {
 		return nil, nil
 	}
@@ -437,7 +440,7 @@ func fromNode(node *tree_sitter.Node, source []byte) (Expr, error) {
 			exprs = append(exprs, expr)
 		}
 		return &List{Items: exprs}, nil
-	case "block":
+	case "block", "source_file":
 		var assignments []Assign
 
 		lhs := true
