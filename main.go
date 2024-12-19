@@ -51,6 +51,23 @@ var typeEnv = &TypeEnv{Types: map[string]*Scheme{
 }}
 
 func main() {
+	if len(os.Args) > 1 {
+		filename := os.Args[1]
+		source, err := os.ReadFile(filename)
+		if err != nil {
+			println(err.Error())
+		}
+		println(eval(source))
+	} else {
+		r := repl.NewRepl(&ReplHandler{})
+		err := r.Loop()
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func eval(source []byte) string {
 	parser := tree_sitter.NewParser()
 	defer parser.Close()
 	err := parser.SetLanguage(tree_sitter.NewLanguage(tree_sitter_fun.Language()))
@@ -58,38 +75,7 @@ func main() {
 		panic(err)
 	}
 
-	if len(os.Args) > 1 {
-		filename := os.Args[0]
-		source, err := os.ReadFile(filename)
-		tree := parser.Parse(source, nil)
-		node := tree.RootNode()
-		expr, err := fromNode(node, source)
-		if err != nil {
-			panic(err)
-		}
-
-		fmt.Println(expr.Pretty(0))
-	} else {
-		r := repl.NewRepl(&ReplHandler{parser})
-		err := r.Loop()
-		if err != nil {
-			panic(err)
-		}
-	}
-
-}
-
-type ReplHandler struct {
-	parser *tree_sitter.Parser
-}
-
-func (r *ReplHandler) Prompt() string {
-	return ">"
-}
-
-func (r *ReplHandler) Eval(buffer string) string {
-	source := []byte(buffer)
-	tree := r.parser.Parse(source, nil)
+	tree := parser.Parse(source, nil)
 	node := tree.RootNode()
 	expr, err := fromNode(node, source)
 	if err != nil {
@@ -109,6 +95,17 @@ func (r *ReplHandler) Eval(buffer string) string {
 	}
 
 	return fmt.Sprintf("%s : %s", val.Pretty(0), scheme.Pretty(0))
+}
+
+type ReplHandler struct{}
+
+func (r *ReplHandler) Prompt() string {
+	return ">"
+}
+
+func (r *ReplHandler) Eval(buffer string) string {
+	source := []byte(buffer)
+	return eval(source)
 }
 
 func (r *ReplHandler) Tab(buffer string) string {

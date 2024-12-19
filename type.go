@@ -630,7 +630,7 @@ func (i *Inferrer) Infer(expr Expr, env *TypeEnv) (subst *Subst, typ Type, err e
 				return nil, nil, err
 			}
 			subst = subst.compose(s)
-			env.extend(assignment.Name, generalize(t))
+			env = env.extend(assignment.Name, generalize(t))
 		}
 		env = env.apply(subst)
 
