@@ -5,6 +5,7 @@ import (
 	tree_sitter_fun "fun/tree-sitter-fun/bindings/go"
 	"github.com/maxott/go-repl"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
+	"maps"
 	"os"
 )
 
@@ -25,6 +26,84 @@ var stdlib = map[string]Val{
 			return &Int{Value: sum}, nil
 		},
 	},
+	"-": &Builtin{
+		Name: "-",
+		Impl: func(args []Val) (Val, error) {
+			first := args[0]
+			i, ok := first.(*Int)
+			if !ok {
+				return nil, fmt.Errorf("invalid sum value type %t", first)
+			}
+
+			sum := i.Value
+			for _, arg := range args[1:] {
+				i, ok := arg.(*Int)
+				if !ok {
+					return nil, fmt.Errorf("invalid sum value type %t", arg)
+				}
+
+				sum -= i.Value
+			}
+
+			return &Int{Value: sum}, nil
+		},
+	},
+	"==": &Builtin{
+		Name: "==",
+		Impl: func(args []Val) (Val, error) {
+			if len(args) != 2 {
+				return nil, fmt.Errorf("expecting 2 arguments, got %d", len(args))
+			}
+
+			arg1 := args[0]
+			arg2 := args[1]
+			if arg1.Pretty(0) == arg2.Pretty(0) {
+				return trueVal, nil
+			} else {
+				return falseVal, nil
+			}
+		},
+	},
+	"fix": &Builtin{
+		Name: "fix",
+		Impl: func(args []Val) (Val, error) {
+			cont, ok := args[0].(*Closure)
+			if !ok {
+				return nil, fmt.Errorf("invalid closure type %t", args[0])
+			}
+
+			if 1 != len(cont.Params) {
+				return nil, fmt.Errorf("invalid number of arguments for function")
+			}
+
+			newEnv := maps.Clone(cont.Env)
+			result, err := Eval(cont.Body, newEnv)
+			newEnv[cont.Params[0]] = result
+			return result, err
+		},
+	},
+}
+
+var unitType = &TypeRec{
+	Entries: map[string]Type{},
+	RestVar: nil,
+	Union:   false,
+}
+
+var boolType = &TypeRec{
+	Entries: map[string]Type{"False": unitType, "True": unitType},
+	RestVar: nil,
+	Union:   true,
+}
+
+var falseVal = &ConsVal{
+	Name:    "False",
+	Payload: nil,
+}
+
+var trueVal = &ConsVal{
+	Name:    "True",
+	Payload: nil,
 }
 
 var typeEnv = &TypeEnv{Types: map[string]*Scheme{
@@ -45,6 +124,53 @@ var typeEnv = &TypeEnv{Types: map[string]*Scheme{
 					Name: "int",
 					Args: nil,
 				},
+			},
+		},
+	},
+	"-": {
+		Forall: nil,
+		Type: &TypeCons{
+			Name: lambdaConsName,
+			Args: []Type{
+				&TypeCons{
+					Name: "int",
+					Args: nil,
+				},
+				&TypeCons{
+					Name: "int",
+					Args: nil,
+				},
+				&TypeCons{
+					Name: "int",
+					Args: nil,
+				},
+			},
+		},
+	},
+	"==": {
+		Forall: []string{"a"},
+		Type: &TypeCons{
+			Name: lambdaConsName,
+			Args: []Type{
+				&TypeVar{Name: "a"},
+				&TypeVar{Name: "a"},
+				boolType,
+			},
+		},
+	},
+	"fix": {
+		Forall: []string{"a"},
+		Type: &TypeCons{
+			Name: lambdaConsName,
+			Args: []Type{
+				&TypeCons{
+					Name: lambdaConsName,
+					Args: []Type{
+						&TypeVar{Name: "a"},
+						&TypeVar{Name: "a"},
+					},
+				},
+				&TypeVar{Name: "a"},
 			},
 		},
 	},
