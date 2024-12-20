@@ -255,7 +255,13 @@ func (i *Inferrer) unifyRecs(rec1 *TypeRec, rec2 *TypeRec) (*Subst, error) {
 
 	keys1MinusKeys2 := strset.Difference(keys1, keys2)
 	keys2MinusKeys1 := strset.Difference(keys2, keys1)
-	open := rec1.RestVar != nil && rec2.RestVar != nil
+	var open bool
+	if union {
+		open = rec1.RestVar != nil || rec2.RestVar != nil
+	} else {
+		open = rec1.RestVar != nil && rec2.RestVar != nil
+	}
+
 	assignableToT1 := keys2MinusKeys1.IsEmpty() || rec1.RestVar != nil
 	assignableToT2 := keys1MinusKeys2.IsEmpty() || rec2.RestVar != nil
 	fresh := i.freshVar()
@@ -573,13 +579,9 @@ func (i *Inferrer) Infer(expr Expr, env *TypeEnv) (subst *Subst, typ Type, err e
 			}
 			subst = subst.compose(s)
 
-			var restVar *TypeVar
-			if expr.Else != nil {
-				restVar = i.freshVar()
-			}
 			s, err = i.unify(valueType, &TypeRec{
 				Entries: map[string]Type{clause.ConsName: fresh},
-				RestVar: restVar,
+				RestVar: nil,
 				Union:   true,
 			})
 			if err != nil {
