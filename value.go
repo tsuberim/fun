@@ -224,13 +224,16 @@ func Eval(expr Expr, env map[string]Val) (Val, error) {
 		return Eval(expr.Else, env)
 	case *Block:
 		blockEnv := maps.Clone(env)
-		for _, assignment := range expr.Assignments {
-			val, err := Eval(assignment.Value, blockEnv)
-			if err != nil {
-				return nil, err
-			}
+		for _, decl := range expr.Decs {
+			switch decl := decl.(type) {
+			case *Assign:
+				val, err := Eval(decl.Value, blockEnv)
+				if err != nil {
+					return nil, err
+				}
 
-			blockEnv[assignment.Name] = val
+				blockEnv[decl.Name] = val
+			}
 		}
 
 		return Eval(expr.Result, blockEnv)

@@ -113,15 +113,15 @@ var typeEnv = &TypeEnv{Types: map[string]*Scheme{
 			Name: lambdaConsName,
 			Args: []Type{
 				&TypeCons{
-					Name: "int",
+					Name: intConsName,
 					Args: nil,
 				},
 				&TypeCons{
-					Name: "int",
+					Name: intConsName,
 					Args: nil,
 				},
 				&TypeCons{
-					Name: "int",
+					Name: intConsName,
 					Args: nil,
 				},
 			},
@@ -133,15 +133,15 @@ var typeEnv = &TypeEnv{Types: map[string]*Scheme{
 			Name: lambdaConsName,
 			Args: []Type{
 				&TypeCons{
-					Name: "int",
+					Name: intConsName,
 					Args: nil,
 				},
 				&TypeCons{
-					Name: "int",
+					Name: intConsName,
 					Args: nil,
 				},
 				&TypeCons{
-					Name: "int",
+					Name: intConsName,
 					Args: nil,
 				},
 			},
@@ -203,6 +203,7 @@ func eval(source []byte) string {
 
 	tree := parser.Parse(source, nil)
 	node := tree.RootNode()
+
 	expr, err := fromNode(node, source)
 	if err != nil {
 		return fmt.Sprintf("ParseError: %s", err)

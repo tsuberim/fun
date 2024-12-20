@@ -179,6 +179,14 @@ func (l *List) Pretty(indent int) string {
 	return dent(indent, fmt.Sprintf("[%s]", strings.Join(items, ", ")))
 }
 
+type Declaration interface {
+	Pretty(indent int) string
+	decl()
+}
+
+func (a *Assign) decl()     {}
+func (a *Annotation) decl() {}
+
 type Assign struct {
 	Name  string
 	Value Expr
@@ -188,17 +196,26 @@ func (a *Assign) Pretty(indent int) string {
 	return dent(indent, fmt.Sprintf("%s = %s", a.Name, a.Value.Pretty(indent)))
 }
 
+type Annotation struct {
+	Name   string
+	Scheme *Scheme
+}
+
+func (a *Annotation) Pretty(indent int) string {
+	return dent(indent, fmt.Sprintf("%s : %s", a.Name, a.Scheme.Pretty(indent)))
+}
+
 type Block struct {
-	Assignments []Assign
-	Result      Expr
+	Decs   []Declaration
+	Result Expr
 }
 
 func (b *Block) Pretty(indent int) string {
-	var assignments []string
-	for _, assignment := range b.Assignments {
-		assignments = append(assignments, assignment.Pretty(indent))
+	var declarations []string
+	for _, declaration := range b.Decs {
+		declarations = append(declarations, declaration.Pretty(indent))
 	}
-	return dent(indent, fmt.Sprintf("(%s;%s)", strings.Join(assignments, ";"), b.Result.Pretty(indent)))
+	return dent(indent, fmt.Sprintf("(%s;%s)", strings.Join(declarations, ";"), b.Result.Pretty(indent)))
 }
 
 func fromNode(node *tree_sitter.Node, source []byte) (Expr, error) {
@@ -440,40 +457,79 @@ func fromNode(node *tree_sitter.Node, source []byte) (Expr, error) {
 			exprs = append(exprs, expr)
 		}
 		return &List{Items: exprs}, nil
+	case "annot":
 	case "block", "source_file":
-		var assignments []Assign
-
-		lhs := true
-		assignment := Assign{}
-		for i := uint(0); i < node.NamedChildCount()-1; i++ {
-			child := node.NamedChild(i)
-			expr, err := fromNode(child, source)
-			if err != nil {
-				return nil, err
-			}
-
-			if lhs {
-				p, ok := expr.(*Var)
-				if !ok {
-					return nil, fmt.Errorf("unexpected record lhs expression type %t", expr)
+		var declarations []Declaration
+		children := node.NamedChildren(node.Walk())
+		for _, child := range children[:len(children)-1] {
+			switch child.GrammarName() {
+			case "assign":
+				assign, err := assignFromNode(&child, source)
+				if err != nil {
+					return nil, err
 				}
-
-				assignment.Name = p.Name
-			} else {
-				assignment.Value = expr
-				assignments = append(assignments, assignment)
-				assignment = Assign{}
+				declarations = append(declarations, assign)
+			case "annot":
+				annot, err := annotFromNode(&child, source)
+				if err != nil {
+					return nil, err
+				}
+				declarations = append(declarations, annot)
+			default:
+				return nil, fmt.Errorf("unexpected declaration name %s", child.GrammarName())
 			}
-
-			lhs = !lhs
 		}
 
-		last, err := fromNode(node.NamedChild(node.NamedChildCount()-1), source)
+		last, err := fromNode(&children[len(children)-1], source)
 		if err != nil {
 			return nil, err
 		}
 
-		return &Block{Assignments: assignments, Result: last}, nil
+		return &Block{Decs: declarations, Result: last}, nil
 	}
 	return nil, fmt.Errorf("invalid node type %s", node.GrammarName())
+}
+
+func assignFromNode(node *tree_sitter.Node, source []byte) (*Assign, error) {
+	lhs, err := fromNode(node.NamedChild(0), source)
+	if err != nil {
+		return nil, err
+	}
+
+	v, ok := lhs.(*Var)
+	if !ok {
+		return nil, fmt.Errorf("unexpected lhs expression type %t", lhs)
+	}
+
+	rhs, err := fromNode(node.NamedChild(1), source)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Assign{
+		Name:  v.Name,
+		Value: rhs,
+	}, nil
+}
+
+func annotFromNode(node *tree_sitter.Node, source []byte) (*Annotation, error) {
+	lhs, err := fromNode(node.NamedChild(0), source)
+	if err != nil {
+		return nil, err
+	}
+
+	v, ok := lhs.(*Var)
+	if !ok {
+		return nil, fmt.Errorf("unexpected lhs expression type %t", lhs)
+	}
+
+	typ, err := typeFromNode(node.NamedChild(1), source)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Annotation{
+		Name:   v.Name,
+		Scheme: generalize(typ),
+	}, nil
 }

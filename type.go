@@ -3,17 +3,17 @@ package main
 import (
 	"fmt"
 	"github.com/samber/lo"
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 	"maps"
 	"sort"
 	"strings"
 )
 import "github.com/scylladb/go-set/strset"
 
-// lowercase to avoid clash with user-defined cons names
-const intConsName = "int"
-const strConsName = "str"
-const lambdaConsName = "lam"
-const listConsName = "list"
+const intConsName = "Int"
+const strConsName = "Str"
+const lambdaConsName = "Lam"
+const listConsName = "List"
 
 type Type interface {
 	typ()
@@ -623,14 +623,40 @@ func (i *Inferrer) Infer(expr Expr, env *TypeEnv) (subst *Subst, typ Type, err e
 
 		return subst, resultType.apply(subst), nil
 	case *Block:
-		for _, assignment := range expr.Assignments {
-			env = env.apply(subst)
-			s, t, err := i.Infer(assignment.Value, env)
-			if err != nil {
-				return nil, nil, err
+		for _, decleration := range expr.Decs {
+			switch dec := decleration.(type) {
+			case *Assign:
+				env = env.apply(subst)
+				s, t, err := i.Infer(dec.Value, env)
+				if err != nil {
+					return nil, nil, err
+				}
+				subst = subst.compose(s)
+
+				if scheme, has := env.Types[dec.Name]; has {
+					s, err = i.unify(i.instantiate(scheme), t)
+					if err != nil {
+						return nil, nil, err
+					}
+					subst = subst.compose(s)
+					t = t.apply(subst)
+				}
+
+				env = env.extend(dec.Name, generalize(t))
+			case *Annotation:
+				if scheme, has := env.Types[dec.Name]; has {
+					t := i.instantiate(dec.Scheme)
+					s, err := i.unify(i.instantiate(scheme), t)
+					if err != nil {
+						return nil, nil, err
+					}
+					subst = subst.compose(s)
+					t = t.apply(subst)
+					env = env.extend(dec.Name, generalize(t))
+				} else {
+					env = env.extend(dec.Name, dec.Scheme)
+				}
 			}
-			subst = subst.compose(s)
-			env = env.extend(assignment.Name, generalize(t))
 		}
 		env = env.apply(subst)
 
@@ -643,4 +669,61 @@ func (i *Inferrer) Infer(expr Expr, env *TypeEnv) (subst *Subst, typ Type, err e
 	}
 
 	return nil, nil, fmt.Errorf("invalid expression type: %T", expr)
+}
+
+func typeFromNode(node *tree_sitter.Node, source []byte) (Type, error) {
+	if node.HasError() {
+		return nil, fmt.Errorf("parse error")
+	}
+	if node == nil {
+		return nil, nil
+	}
+
+	switch node.GrammarName() {
+	case "var":
+		name := node.Utf8Text(source)
+		return &TypeVar{Name: name}, nil
+	case "type_cons":
+		consName := node.NamedChild(0).Utf8Text(source)
+
+		var args []Type
+		for i := uint(1); i < node.NamedChildCount(); i++ {
+			child := node.NamedChild(i)
+			expr, err := typeFromNode(child, source)
+			if err != nil {
+				return nil, err
+			}
+
+			args = append(args, expr)
+		}
+
+		return &TypeCons{Name: consName, Args: args}, nil
+	case "type_rec", "type_union":
+		rec := &TypeRec{
+			Entries: map[string]Type{},
+			RestVar: nil,
+			Union:   node.GrammarName() == "type_union",
+		}
+
+		names := strset.New()
+		i := uint(0)
+		for i < node.NamedChildCount() {
+			prop := node.NamedChild(i).Utf8Text(source)
+			if names.Has(prop) {
+				return nil, fmt.Errorf("duplicate type record property name")
+			}
+			names.Add(prop)
+
+			typ, err := typeFromNode(node.NamedChild(i+1), source)
+			if err != nil {
+				return nil, err
+			}
+			rec.Entries[prop] = typ
+
+			i += 2
+		}
+
+		return rec, nil
+	}
+	return nil, fmt.Errorf("invalid node type %s", node.GrammarName())
 }
