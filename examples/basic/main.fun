@@ -7,4 +7,5 @@ sum_range = fix(\rec -> \n ->
         True t -> 0;
         False f -> n + rec(lib.dec(n))
 )
+
 sum_range(100) # result: 5050
