@@ -5,6 +5,7 @@ import (
 	tree_sitter_fun "fun/tree-sitter-fun/bindings/go"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 	"os"
+	"path"
 )
 
 const RootModule = "<root>"
@@ -21,11 +22,12 @@ func (m *Module) Pretty(indent int) string {
 }
 
 type Program struct {
-	parser    *tree_sitter.Parser
-	evaluator *Evaluator
-	inferer   *Inferrer
-	Modules   map[string]*Module
-	env       *Env
+	parser      *tree_sitter.Parser
+	evaluator   *Evaluator
+	inferer     *Inferrer
+	Modules     map[string]*Module
+	env         *Env
+	currentPath string
 }
 
 func NewProgram() (*Program, error) {
@@ -36,8 +38,9 @@ func NewProgram() (*Program, error) {
 	}
 
 	p := &Program{
-		parser:  parser,
-		Modules: map[string]*Module{},
+		parser:      parser,
+		Modules:     map[string]*Module{},
+		currentPath: "",
 	}
 	p.evaluator = NewEvaluator(p)
 	p.inferer = NewInferrer(p)
@@ -60,7 +63,7 @@ func (p *Program) Import(importPath string) (*Module, error) {
 }
 
 func (p *Program) importModule(importPath string) (*Module, error) {
-	source, err := os.ReadFile(importPath)
+	source, err := os.ReadFile(path.Join(path.Dir(p.currentPath), importPath))
 	if err != nil {
 		return nil, err
 	}
@@ -69,6 +72,14 @@ func (p *Program) importModule(importPath string) (*Module, error) {
 }
 
 func (p *Program) Run(source []byte, importPath string) (*Module, error) {
+	if importPath != RootModule {
+		prevPath := p.currentPath
+		p.currentPath = importPath
+		defer func() {
+			p.currentPath = prevPath
+		}()
+	}
+
 	tree := p.parser.Parse(source, nil)
 	node := tree.RootNode()
 

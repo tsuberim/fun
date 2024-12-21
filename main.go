@@ -21,7 +21,7 @@ func main() {
 			println(err.Error())
 		}
 
-		mod, err := program.Run(source, internal.RootModule)
+		mod, err := program.Run(source, filename)
 		if err != nil {
 			fmt.Printf("Error: %s\n", err.Error())
 			return
