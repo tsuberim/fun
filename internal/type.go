@@ -401,7 +401,7 @@ func (i *Inferrer) Infer(expr Expr, env *TypeEnv) (subst *Subst, typ Type, err e
 			subst = subst.compose(s)
 
 			s, err = i.unify(t, &TypeCons{
-				Name: "str",
+				Name: strConsName,
 				Args: nil,
 			})
 			if err != nil {
@@ -412,7 +412,7 @@ func (i *Inferrer) Infer(expr Expr, env *TypeEnv) (subst *Subst, typ Type, err e
 		}
 
 		return subst, &TypeCons{
-			Name: "str",
+			Name: strConsName,
 			Args: nil,
 		}, nil
 	case *Var:
@@ -562,12 +562,11 @@ func (i *Inferrer) Infer(expr Expr, env *TypeEnv) (subst *Subst, typ Type, err e
 	case *When:
 		var resultType Type = i.freshVar()
 
-		s, valueType, err := i.Infer(expr.Value, env)
-		if err != nil {
-			return nil, nil, err
+		var expectedValueType = &TypeRec{
+			Entries: map[string]Type{},
+			RestVar: nil,
+			Union:   true,
 		}
-		subst = subst.compose(s)
-		valueType = valueType.apply(subst)
 
 		for _, clause := range expr.Options {
 			env = env.apply(subst)
@@ -581,21 +580,8 @@ func (i *Inferrer) Infer(expr Expr, env *TypeEnv) (subst *Subst, typ Type, err e
 			}
 			subst = subst.compose(s)
 
-			var restVar *TypeVar
-			if expr.Else != nil {
-				restVar = i.freshVar()
-			}
+			expectedValueType.Entries[clause.ConsName] = i.freshVar()
 
-			s, err = i.unify(valueType, &TypeRec{
-				Entries: map[string]Type{clause.ConsName: fresh},
-				RestVar: restVar,
-				Union:   true,
-			})
-			if err != nil {
-				return nil, nil, err
-			}
-
-			subst = subst.compose(s)
 			resultType = resultType.apply(subst)
 			s, err = i.unify(resultType, t.apply(subst))
 			if err != nil {
@@ -605,6 +591,8 @@ func (i *Inferrer) Infer(expr Expr, env *TypeEnv) (subst *Subst, typ Type, err e
 		}
 
 		if expr.Else != nil {
+			expectedValueType.RestVar = i.freshVar()
+
 			s, t, err := i.Infer(expr.Else, env)
 			if err != nil {
 				return nil, nil, err
@@ -612,22 +600,24 @@ func (i *Inferrer) Infer(expr Expr, env *TypeEnv) (subst *Subst, typ Type, err e
 			subst = subst.compose(s)
 			t = t.apply(subst)
 
-			s, err = i.unify(valueType, &TypeRec{
-				Entries: map[string]Type{},
-				RestVar: i.freshVar(), // open set
-				Union:   true,
-			})
-			if err != nil {
-				return nil, nil, err
-			}
-			subst = subst.compose(s)
-
 			resultType = resultType.apply(subst)
 			s, err = i.unify(resultType, t.apply(subst))
 			if err != nil {
 				return nil, nil, err
 			}
 			subst = subst.compose(s)
+		}
+
+		s, valueType, err := i.Infer(expr.Value, env)
+		if err != nil {
+			return nil, nil, err
+		}
+		subst = subst.compose(s)
+		valueType = valueType.apply(subst)
+
+		s, err = i.unify(valueType, expectedValueType)
+		if err != nil {
+			return nil, nil, err
 		}
 
 		return subst, resultType.apply(subst), nil
