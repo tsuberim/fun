@@ -1,4 +1,4 @@
-package main
+package internal
 
 import (
 	"fmt"
@@ -752,4 +752,26 @@ func typeFromNode(node *tree_sitter.Node, source []byte) (Type, error) {
 		return rec, nil
 	}
 	return nil, fmt.Errorf("invalid node type %s", node.GrammarName())
+}
+
+var unitType = &TypeRec{
+	Entries: map[string]Type{},
+	RestVar: nil,
+	Union:   false,
+}
+
+var boolType = &TypeRec{
+	Entries: map[string]Type{"False": unitType, "True": unitType},
+	RestVar: nil,
+	Union:   true,
+}
+
+var falseVal = &ConsVal{
+	Name:    "False",
+	Payload: nil,
+}
+
+var trueVal = &ConsVal{
+	Name:    "True",
+	Payload: nil,
 }

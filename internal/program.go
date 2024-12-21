@@ -1,4 +1,4 @@
-package main
+package internal
 
 import (
 	"fmt"
@@ -25,6 +25,7 @@ type Program struct {
 	evaluator *Evaluator
 	inferer   *Inferrer
 	Modules   map[string]*Module
+	env       *Env
 }
 
 func NewProgram() (*Program, error) {
@@ -40,6 +41,7 @@ func NewProgram() (*Program, error) {
 	}
 	p.evaluator = NewEvaluator(p)
 	p.inferer = NewInferrer(p)
+	p.env = NewStdEnv(p)
 	return p, nil
 }
 
@@ -77,14 +79,14 @@ func (p *Program) Run(source []byte, importPath string) (*Module, error) {
 	}
 
 	// type check
-	_, t, err := p.inferer.Infer(expr, typeEnv)
+	_, t, err := p.inferer.Infer(expr, p.env.Types())
 	if err != nil {
 		return nil, err
 	}
 	scheme := generalize(t)
 
 	// evaluate
-	val, err := p.evaluator.Eval(expr, p.evaluator.stdlib)
+	val, err := p.evaluator.Eval(expr, p.env.Values())
 	if err != nil {
 		return nil, err
 	}

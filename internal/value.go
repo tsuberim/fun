@@ -1,4 +1,4 @@
-package main
+package internal
 
 import (
 	"fmt"
@@ -79,13 +79,10 @@ func (b *Builtin) Pretty(indent int) string {
 
 type Evaluator struct {
 	program *Program
-	stdlib  map[string]Val
 }
 
 func NewEvaluator(program *Program) *Evaluator {
-	e := &Evaluator{program: program}
-	e.stdlib = createStdLib(e)
-	return e
+	return &Evaluator{program: program}
 }
 
 func (e *Evaluator) Eval(expr Expr, env map[string]Val) (Val, error) {
@@ -264,81 +261,4 @@ func extend(env map[string]Val, name string, val Val) map[string]Val {
 	cloned := maps.Clone(env)
 	cloned[name] = val
 	return cloned
-}
-
-func createStdLib(e *Evaluator) map[string]Val {
-	return map[string]Val{
-		"+": &Builtin{
-			Name: "+",
-			Impl: func(args []Val) (Val, error) {
-				sum := 0
-				for _, arg := range args {
-					i, ok := arg.(*Int)
-					if !ok {
-						return nil, fmt.Errorf("invalid sum value type %t", arg)
-					}
-
-					sum += i.Value
-				}
-
-				return &Int{Value: sum}, nil
-			},
-		},
-		"-": &Builtin{
-			Name: "-",
-			Impl: func(args []Val) (Val, error) {
-				first := args[0]
-				i, ok := first.(*Int)
-				if !ok {
-					return nil, fmt.Errorf("invalid sum value type %t", first)
-				}
-
-				sum := i.Value
-				for _, arg := range args[1:] {
-					i, ok := arg.(*Int)
-					if !ok {
-						return nil, fmt.Errorf("invalid sum value type %t", arg)
-					}
-
-					sum -= i.Value
-				}
-
-				return &Int{Value: sum}, nil
-			},
-		},
-		"==": &Builtin{
-			Name: "==",
-			Impl: func(args []Val) (Val, error) {
-				if len(args) != 2 {
-					return nil, fmt.Errorf("expecting 2 arguments, got %d", len(args))
-				}
-
-				arg1 := args[0]
-				arg2 := args[1]
-				if arg1.Pretty(0) == arg2.Pretty(0) {
-					return trueVal, nil
-				} else {
-					return falseVal, nil
-				}
-			},
-		},
-		"fix": &Builtin{
-			Name: "fix",
-			Impl: func(args []Val) (Val, error) {
-				cont, ok := args[0].(*Closure)
-				if !ok {
-					return nil, fmt.Errorf("invalid closure type %t", args[0])
-				}
-
-				if 1 != len(cont.Params) {
-					return nil, fmt.Errorf("invalid number of arguments for function")
-				}
-
-				newEnv := maps.Clone(cont.Env)
-				result, err := e.Eval(cont.Body, newEnv)
-				newEnv[cont.Params[0]] = result
-				return result, err
-			},
-		},
-	}
 }
