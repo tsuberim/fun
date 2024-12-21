@@ -334,11 +334,12 @@ func generalize(t Type) *Scheme {
 }
 
 type Inferrer struct {
+	program  *Program
 	varCount int
 }
 
-func NewInferrer() *Inferrer {
-	return &Inferrer{varCount: 0}
+func NewInferrer(program *Program) *Inferrer {
+	return &Inferrer{program: program, varCount: 0}
 }
 
 func (i *Inferrer) freshVar() *TypeVar {
@@ -579,9 +580,14 @@ func (i *Inferrer) Infer(expr Expr, env *TypeEnv) (subst *Subst, typ Type, err e
 			}
 			subst = subst.compose(s)
 
+			var restVar *TypeVar
+			if expr.Else != nil {
+				restVar = i.freshVar()
+			}
+
 			s, err = i.unify(valueType, &TypeRec{
 				Entries: map[string]Type{clause.ConsName: fresh},
-				RestVar: nil,
+				RestVar: restVar,
 				Union:   true,
 			})
 			if err != nil {
@@ -627,7 +633,7 @@ func (i *Inferrer) Infer(expr Expr, env *TypeEnv) (subst *Subst, typ Type, err e
 	case *Block:
 		for _, decleration := range expr.Decs {
 			switch dec := decleration.(type) {
-			case *Assign:
+			case *Assignment:
 				env = env.apply(subst)
 				s, t, err := i.Infer(dec.Value, env)
 				if err != nil {
@@ -645,7 +651,7 @@ func (i *Inferrer) Infer(expr Expr, env *TypeEnv) (subst *Subst, typ Type, err e
 				}
 
 				env = env.extend(dec.Name, generalize(t))
-			case *Annotation:
+			case *TypeAnnotation:
 				if scheme, has := env.Types[dec.Name]; has {
 					t := i.instantiate(dec.Scheme)
 					s, err := i.unify(i.instantiate(scheme), t)
@@ -657,6 +663,24 @@ func (i *Inferrer) Infer(expr Expr, env *TypeEnv) (subst *Subst, typ Type, err e
 					env = env.extend(dec.Name, generalize(t))
 				} else {
 					env = env.extend(dec.Name, dec.Scheme)
+				}
+			case *Import:
+				mod, err := i.program.Import(dec.Path)
+				if err != nil {
+					return nil, nil, err
+				}
+
+				if scheme, has := env.Types[dec.Name]; has {
+					t := i.instantiate(mod.Type)
+					s, err := i.unify(i.instantiate(scheme), t)
+					if err != nil {
+						return nil, nil, err
+					}
+					subst = subst.compose(s)
+					t = t.apply(subst)
+					env = env.extend(dec.Name, generalize(t))
+				} else {
+					env = env.extend(dec.Name, mod.Type)
 				}
 			}
 		}

@@ -77,7 +77,18 @@ func (b *Builtin) Pretty(indent int) string {
 	return fmt.Sprintf("<builtin %s>", b.Name)
 }
 
-func Eval(expr Expr, env map[string]Val) (Val, error) {
+type Evaluator struct {
+	program *Program
+	stdlib  map[string]Val
+}
+
+func NewEvaluator(program *Program) *Evaluator {
+	e := &Evaluator{program: program}
+	e.stdlib = createStdLib(e)
+	return e
+}
+
+func (e *Evaluator) Eval(expr Expr, env map[string]Val) (Val, error) {
 	switch expr := expr.(type) {
 	case *Int:
 		return expr, nil
@@ -86,7 +97,7 @@ func Eval(expr Expr, env map[string]Val) (Val, error) {
 	case *Str:
 		sum := ""
 		for _, part := range expr.Parts {
-			val, err := Eval(part, env)
+			val, err := e.Eval(part, env)
 			if err != nil {
 				return nil, err
 			}
@@ -113,7 +124,7 @@ func Eval(expr Expr, env map[string]Val) (Val, error) {
 			Body:   expr.Body,
 		}, nil
 	case *App:
-		fn, err := Eval(expr.Fn, env)
+		fn, err := e.Eval(expr.Fn, env)
 		if err != nil {
 			return nil, err
 		}
@@ -121,7 +132,7 @@ func Eval(expr Expr, env map[string]Val) (Val, error) {
 		if builtin, ok := fn.(*Builtin); ok {
 			var args []Val
 			for _, arg := range expr.Args {
-				val, err := Eval(arg, env)
+				val, err := e.Eval(arg, env)
 				if err != nil {
 					return nil, err
 				}
@@ -143,18 +154,18 @@ func Eval(expr Expr, env map[string]Val) (Val, error) {
 
 		newEnv := maps.Clone(clos.Env)
 		for i, arg := range expr.Args {
-			val, err := Eval(arg, env)
+			val, err := e.Eval(arg, env)
 			if err != nil {
 				return nil, err
 			}
 			newEnv[clos.Params[i]] = val
 		}
 
-		return Eval(clos.Body, newEnv)
+		return e.Eval(clos.Body, newEnv)
 	case *List:
 		var vals []Val
 		for _, item := range expr.Items {
-			val, err := Eval(item, env)
+			val, err := e.Eval(item, env)
 			if err != nil {
 				return nil, err
 			}
@@ -165,7 +176,7 @@ func Eval(expr Expr, env map[string]Val) (Val, error) {
 	case *Rec:
 		entries := map[string]Val{}
 		for _, entry := range expr.Entries {
-			val, err := Eval(entry.Value, env)
+			val, err := e.Eval(entry.Value, env)
 			if err != nil {
 				return nil, err
 			}
@@ -175,7 +186,7 @@ func Eval(expr Expr, env map[string]Val) (Val, error) {
 
 		return &RecVal{Entries: entries}, nil
 	case *Prop:
-		val, err := Eval(expr.Parent, env)
+		val, err := e.Eval(expr.Parent, env)
 		if err != nil {
 			return nil, err
 		}
@@ -192,14 +203,14 @@ func Eval(expr Expr, env map[string]Val) (Val, error) {
 
 		return val, nil
 	case *Cons:
-		val, err := Eval(expr.Payload, env)
+		val, err := e.Eval(expr.Payload, env)
 		if err != nil {
 			return nil, err
 		}
 
 		return &ConsVal{Name: expr.Name, Payload: val}, nil
 	case *When:
-		val, err := Eval(expr.Value, env)
+		val, err := e.Eval(expr.Value, env)
 		if err != nil {
 			return nil, err
 		}
@@ -214,29 +225,36 @@ func Eval(expr Expr, env map[string]Val) (Val, error) {
 				continue
 			}
 
-			return Eval(clause.Consequence, extend(env, clause.Payload, cons.Payload))
+			return e.Eval(clause.Consequence, extend(env, clause.Payload, cons.Payload))
 		}
 
 		if expr.Else == nil {
 			return nil, fmt.Errorf("no when clause matches cons name %s", cons.Name)
 		}
 
-		return Eval(expr.Else, env)
+		return e.Eval(expr.Else, env)
 	case *Block:
 		blockEnv := maps.Clone(env)
 		for _, decl := range expr.Decs {
 			switch decl := decl.(type) {
-			case *Assign:
-				val, err := Eval(decl.Value, blockEnv)
+			case *Assignment:
+				val, err := e.Eval(decl.Value, blockEnv)
 				if err != nil {
 					return nil, err
 				}
 
 				blockEnv[decl.Name] = val
+			case *Import:
+				mod, err := e.program.Import(decl.Path)
+				if err != nil {
+					return nil, err
+				}
+
+				blockEnv[decl.Name] = mod.Val
 			}
 		}
 
-		return Eval(expr.Result, blockEnv)
+		return e.Eval(expr.Result, blockEnv)
 	}
 
 	return nil, fmt.Errorf("invalid expression type: %T", expr)
@@ -246,4 +264,81 @@ func extend(env map[string]Val, name string, val Val) map[string]Val {
 	cloned := maps.Clone(env)
 	cloned[name] = val
 	return cloned
+}
+
+func createStdLib(e *Evaluator) map[string]Val {
+	return map[string]Val{
+		"+": &Builtin{
+			Name: "+",
+			Impl: func(args []Val) (Val, error) {
+				sum := 0
+				for _, arg := range args {
+					i, ok := arg.(*Int)
+					if !ok {
+						return nil, fmt.Errorf("invalid sum value type %t", arg)
+					}
+
+					sum += i.Value
+				}
+
+				return &Int{Value: sum}, nil
+			},
+		},
+		"-": &Builtin{
+			Name: "-",
+			Impl: func(args []Val) (Val, error) {
+				first := args[0]
+				i, ok := first.(*Int)
+				if !ok {
+					return nil, fmt.Errorf("invalid sum value type %t", first)
+				}
+
+				sum := i.Value
+				for _, arg := range args[1:] {
+					i, ok := arg.(*Int)
+					if !ok {
+						return nil, fmt.Errorf("invalid sum value type %t", arg)
+					}
+
+					sum -= i.Value
+				}
+
+				return &Int{Value: sum}, nil
+			},
+		},
+		"==": &Builtin{
+			Name: "==",
+			Impl: func(args []Val) (Val, error) {
+				if len(args) != 2 {
+					return nil, fmt.Errorf("expecting 2 arguments, got %d", len(args))
+				}
+
+				arg1 := args[0]
+				arg2 := args[1]
+				if arg1.Pretty(0) == arg2.Pretty(0) {
+					return trueVal, nil
+				} else {
+					return falseVal, nil
+				}
+			},
+		},
+		"fix": &Builtin{
+			Name: "fix",
+			Impl: func(args []Val) (Val, error) {
+				cont, ok := args[0].(*Closure)
+				if !ok {
+					return nil, fmt.Errorf("invalid closure type %t", args[0])
+				}
+
+				if 1 != len(cont.Params) {
+					return nil, fmt.Errorf("invalid number of arguments for function")
+				}
+
+				newEnv := maps.Clone(cont.Env)
+				result, err := e.Eval(cont.Body, newEnv)
+				newEnv[cont.Params[0]] = result
+				return result, err
+			},
+		},
+	}
 }

@@ -184,25 +184,35 @@ type Declaration interface {
 	decl()
 }
 
-func (a *Assign) decl()     {}
-func (a *Annotation) decl() {}
+func (a *Assignment) decl()     {}
+func (a *TypeAnnotation) decl() {}
+func (a *Import) decl()         {}
 
-type Assign struct {
+type Assignment struct {
 	Name  string
 	Value Expr
 }
 
-func (a *Assign) Pretty(indent int) string {
+func (a *Assignment) Pretty(indent int) string {
 	return dent(indent, fmt.Sprintf("%s = %s", a.Name, a.Value.Pretty(indent)))
 }
 
-type Annotation struct {
+type TypeAnnotation struct {
 	Name   string
 	Scheme *Scheme
 }
 
-func (a *Annotation) Pretty(indent int) string {
+func (a *TypeAnnotation) Pretty(indent int) string {
 	return dent(indent, fmt.Sprintf("%s : %s", a.Name, a.Scheme.Pretty(indent)))
+}
+
+type Import struct {
+	Name string
+	Path string
+}
+
+func (i *Import) Pretty(indent int) string {
+	return fmt.Sprintf("import %s from %s", i.Name, i.Path)
 }
 
 type Block struct {
@@ -475,6 +485,12 @@ func fromNode(node *tree_sitter.Node, source []byte) (Expr, error) {
 					return nil, err
 				}
 				declarations = append(declarations, annot)
+			case "import":
+				importDec, err := importFromNode(&child, source)
+				if err != nil {
+					return nil, err
+				}
+				declarations = append(declarations, importDec)
 			default:
 				return nil, fmt.Errorf("unexpected declaration name %s", child.GrammarName())
 			}
@@ -490,7 +506,7 @@ func fromNode(node *tree_sitter.Node, source []byte) (Expr, error) {
 	return nil, fmt.Errorf("invalid node type %s", node.GrammarName())
 }
 
-func assignFromNode(node *tree_sitter.Node, source []byte) (*Assign, error) {
+func assignFromNode(node *tree_sitter.Node, source []byte) (*Assignment, error) {
 	lhs, err := fromNode(node.NamedChild(0), source)
 	if err != nil {
 		return nil, err
@@ -506,13 +522,13 @@ func assignFromNode(node *tree_sitter.Node, source []byte) (*Assign, error) {
 		return nil, err
 	}
 
-	return &Assign{
+	return &Assignment{
 		Name:  v.Name,
 		Value: rhs,
 	}, nil
 }
 
-func annotFromNode(node *tree_sitter.Node, source []byte) (*Annotation, error) {
+func annotFromNode(node *tree_sitter.Node, source []byte) (*TypeAnnotation, error) {
 	lhs, err := fromNode(node.NamedChild(0), source)
 	if err != nil {
 		return nil, err
@@ -528,8 +544,18 @@ func annotFromNode(node *tree_sitter.Node, source []byte) (*Annotation, error) {
 		return nil, err
 	}
 
-	return &Annotation{
+	return &TypeAnnotation{
 		Name:   v.Name,
 		Scheme: generalize(typ),
+	}, nil
+}
+
+func importFromNode(node *tree_sitter.Node, source []byte) (*Import, error) {
+	lhs := node.NamedChild(0).Utf8Text(source)
+	importName := node.NamedChild(1).Utf8Text(source)
+
+	return &Import{
+		Name: lhs,
+		Path: strings.Trim(importName, "`"),
 	}, nil
 }
