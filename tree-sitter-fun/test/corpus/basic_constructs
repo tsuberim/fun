@@ -6,18 +6,25 @@ integer
 (source_file (int))
 
 ===
+comment
+===
+42 # some comment
+---
+(source_file (int))
+
+===
 string
 ===
 `foo`
 ---
-(source_file (str))
+(source_file (str (lit_str)))
 
 ===
 string template
 ===
 `{2} bananas`
 ---
-(source_file (str (int)))
+(source_file (str (int) (lit_str)))
 
 ===
 variable
@@ -38,7 +45,7 @@ function application
 ===
 foo(1,`bar`)
 ---
-(source_file (app (var) (int) (str)))
+(source_file (app (var) (int) (str (lit_str))))
 
 ===
 infix function application
@@ -59,7 +66,7 @@ record
 ===
 {name: `Matan`, age: 28}
 ---
-(source_file (rec (var) (str) (var) (int)))
+(source_file (rec (var) (str (lit_str)) (var) (int)))
 
 ===
 property
@@ -73,43 +80,35 @@ constructor
 ===
 Celsius 42
 ---
-(source_file (cons (int)))
+(source_file (cons (cons_name) (int)))
 
 ===
 constructor with no payload
 ===
 False
 ---
-(source_file (cons))
+(source_file (cons (cons_name)))
 
 ===
 when
 ===
-when x is Person h -> h; else 5
+when x is Person h -> h else 5
 ---
-(source_file (when (var) (var) (var) (int)))
-
-===
-when with no payload
-===
-when x is Person -> 46; else 5
----
-(source_file (when (var) (int) (int)))
-
+(source_file (when (var) (cons_name) (var) (var) (int)))
 
 ===
 list
 ===
 [1,`asdf`, Celsius 42]
 ---
-(source_file (list (int) (str) (cons (int))))
+(source_file (list (int) (str (lit_str)) (cons (cons_name) (int))))
 
 ===
 list at index
 ===
 [1,`asdf`, Celsius 42] @ 4
 ---
-(source_file (iapp (list (int) (str) (cons (int))) (sym) (int)))
+(source_file (iapp (list (int) (str (lit_str)) (cons (cons_name) (int))) (sym) (int)))
 
 
 ===
@@ -128,7 +127,23 @@ block
     b
 )
 ---
-(source_file (block (var) (int) (var) (var) (var)))
+(source_file (block (assign (var) (int)) (assign (var) (var)) (var)))
+
+
+===
+inline block
+===
+(a = 4 \ b = a \ b)
+---
+(source_file (block (assign (var) (int)) (assign (var) (var)) (var)))
+
+===
+import
+===
+import foo from `foo`
+foo
+---
+(source_file (import (var) (lit_str))  (var))
 
 
 

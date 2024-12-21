@@ -1,0 +1,43 @@
+===
+primitive type
+===
+x : Int
+42
+---
+(source_file
+    (annot (var) (type_cons (cons_name)))
+    (int)
+)
+
+===
+type application
+===
+x : Lam<Int, Int>
+42
+---
+(source_file
+    (annot (var) (type_cons (cons_name) (type_cons (cons_name)) (type_cons (cons_name))))
+    (int)
+)
+
+===
+type record
+===
+x : {name: Str, age: Int}
+42
+---
+(source_file
+    (annot (var) (type_rec (var) (type_cons (cons_name)) (var) (type_cons (cons_name))))
+    (int)
+)
+
+===
+type union
+===
+x : [Person Int, Child Unit]
+42
+---
+(source_file
+    (annot (var) (type_union (cons_name) (type_cons (cons_name)) (cons_name) (type_cons (cons_name))))
+    (int)
+)

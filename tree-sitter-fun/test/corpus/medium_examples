@@ -5,42 +5,68 @@ f = \x, y -> (
         x + y
     )
 person = {name: `Matan`, age: f(24,4), is_child: False}
-qualifier = when person.is_child is False -> `a child`; else `{person.age} years old`
+qualifier : {name: Str, inc: Lam<Int, Int>}
+qualifier = when person.is_child is False g -> `a child` else `{person.age} years old`
 `My name is {person.name} and I'm {qualifier}`
 ---
  (source_file
-      (var)
+      (assign (var)
       (lam
         (var)
         (var)
         (block (iapp
           (var)
           (sym)
-          (var))))
-      (var)
+          (var)))))
+      (assign (var)
       (rec
         (var)
-        (str)
+        (str (lit_str))
         (var)
         (app
           (var)
           (int)
           (int))
         (var)
-        (cons))
-      (var)
+        (cons (cons_name))))
+    (annot
+        (var)
+        (type_rec
+          (var)
+          (type_cons
+            (cons_name))
+          (var)
+          (type_cons
+            (cons_name)
+            (type_cons
+              (cons_name))
+            (type_cons
+              (cons_name)))))
+      (assign (var)
       (when
         (prop
           (var)
           (var))
-        (str)
+        (cons_name)
+        (var)
+        (str (lit_str))
         (str
           (prop
             (var)
-            (var))))
+            (var))
+         (lit_str))))
       (str
+        (lit_str)
         (prop
           (var)
           (var))
+        (lit_str)
         (var)))
+
+===
+application precedence
+===
+f(x) + g(y)
+---
+(source_file (iapp (app (var) (var)) (sym) (app (var) (var))))
 
