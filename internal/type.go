@@ -2,6 +2,7 @@ package internal
 
 import (
 	"fmt"
+	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 	"maps"
@@ -197,7 +198,7 @@ func bind(tvarName string, t Type) (*Subst, error) {
 	}
 
 	if t.freeVars().Has(tvarName) {
-		return nil, fmt.Errorf("infinite recursive type")
+		return nil, errors.Errorf("infinite recursive type")
 	}
 
 	return &Subst{Subst: map[string]Type{tvarName: t}}, nil
@@ -216,7 +217,7 @@ func (i *Inferrer) unify(t1, t2 Type) (*Subst, error) {
 	if cons1, ok := t1.(*TypeCons); ok {
 		cons2, ok := t2.(*TypeCons)
 		if !ok {
-			return nil, fmt.Errorf("incompatible types %s ~!~ %s", t1.Pretty(0), t2.Pretty(0))
+			return nil, errors.Errorf("incompatible types %s ~!~ %s", t1.Pretty(0), t2.Pretty(0))
 		}
 
 		return i.unifyCons(cons1, cons2)
@@ -225,18 +226,18 @@ func (i *Inferrer) unify(t1, t2 Type) (*Subst, error) {
 	if rec1, ok := t1.(*TypeRec); ok {
 		rec2, ok := t2.(*TypeRec)
 		if !ok {
-			return nil, fmt.Errorf("incompatible types %s ~!~ %s", t1.Pretty(0), t2.Pretty(0))
+			return nil, errors.Errorf("incompatible types %s ~!~ %s", t1.Pretty(0), t2.Pretty(0))
 		}
 
 		return i.unifyRecs(rec1, rec2)
 	}
 
-	return nil, fmt.Errorf("incompatible types %s ~!~ %s", t1.Pretty(0), t2.Pretty(0))
+	return nil, errors.Errorf("incompatible types %s ~!~ %s", t1.Pretty(0), t2.Pretty(0))
 }
 
 func (i *Inferrer) unifyRecs(rec1 *TypeRec, rec2 *TypeRec) (*Subst, error) {
 	if rec1.Union != rec2.Union {
-		return nil, fmt.Errorf("incompatible types %s ~!~ %s", rec1.Pretty(0), rec2.Pretty(0))
+		return nil, errors.Errorf("incompatible types %s ~!~ %s", rec1.Pretty(0), rec2.Pretty(0))
 	}
 	union := rec1.Union
 
@@ -300,7 +301,7 @@ func (i *Inferrer) unifyRecs(rec1 *TypeRec, rec2 *TypeRec) (*Subst, error) {
 			subst = subst.compose(s)
 		}
 	} else {
-		return nil, fmt.Errorf("incompatible types %s ~!~ %s", rec1.Pretty(0), rec2.Pretty(0))
+		return nil, errors.Errorf("incompatible types %s ~!~ %s", rec1.Pretty(0), rec2.Pretty(0))
 	}
 
 	return subst, nil
@@ -308,7 +309,7 @@ func (i *Inferrer) unifyRecs(rec1 *TypeRec, rec2 *TypeRec) (*Subst, error) {
 
 func (i *Inferrer) unifyCons(cons1, cons2 *TypeCons) (*Subst, error) {
 	if cons1.Name != cons2.Name || len(cons1.Args) != len(cons2.Args) {
-		return nil, fmt.Errorf("incompatible types %s ~!~ %s", cons1.Pretty(0), cons2.Pretty(0))
+		return nil, errors.Errorf("incompatible types %s ~!~ %s", cons1.Pretty(0), cons2.Pretty(0))
 	}
 
 	subst := &Subst{Subst: map[string]Type{}}
@@ -417,7 +418,7 @@ func (i *Inferrer) Infer(expr Expr, env *TypeEnv) (subst *Subst, typ Type, err e
 	case *Var:
 		scheme, has := env.Types[expr.Name]
 		if !has {
-			return nil, nil, fmt.Errorf("unbound variable %s", expr.Name)
+			return nil, nil, errors.Errorf("unbound variable %s", expr.Name)
 		}
 
 		t := i.instantiate(scheme)
@@ -694,12 +695,12 @@ func (i *Inferrer) Infer(expr Expr, env *TypeEnv) (subst *Subst, typ Type, err e
 		return subst, t.apply(subst), nil
 	}
 
-	return nil, nil, fmt.Errorf("invalid expression type: %T", expr)
+	return nil, nil, errors.Errorf("invalid expression type: %T", expr)
 }
 
 func typeFromNode(node *tree_sitter.Node, source []byte) (Type, error) {
 	if node.HasError() {
-		return nil, fmt.Errorf("parse error")
+		return nil, errors.Errorf("parse error")
 	}
 	if node == nil {
 		return nil, nil
@@ -736,7 +737,7 @@ func typeFromNode(node *tree_sitter.Node, source []byte) (Type, error) {
 		for i < node.NamedChildCount() {
 			prop := node.NamedChild(i).Utf8Text(source)
 			if names.Has(prop) {
-				return nil, fmt.Errorf("duplicate type record property name")
+				return nil, errors.Errorf("duplicate type record property name")
 			}
 			names.Add(prop)
 
@@ -751,7 +752,7 @@ func typeFromNode(node *tree_sitter.Node, source []byte) (Type, error) {
 
 		return rec, nil
 	}
-	return nil, fmt.Errorf("invalid node type %s", node.GrammarName())
+	return nil, errors.Errorf("invalid node type %s", node.GrammarName())
 }
 
 var unitType = &TypeRec{

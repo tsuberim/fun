@@ -1,7 +1,7 @@
 package internal
 
 import (
-	"fmt"
+	"github.com/pkg/errors"
 	"maps"
 )
 
@@ -61,7 +61,7 @@ func NewStdEnv(program *Program) *Env {
 						for _, arg := range args {
 							i, ok := arg.(*Int)
 							if !ok {
-								return nil, fmt.Errorf("invalid sum value type %t", arg)
+								return nil, errors.Errorf("invalid sum value type %t", arg)
 							}
 
 							sum += i.Value
@@ -98,14 +98,14 @@ func NewStdEnv(program *Program) *Env {
 						first := args[0]
 						i, ok := first.(*Int)
 						if !ok {
-							return nil, fmt.Errorf("invalid sum value type %t", first)
+							return nil, errors.Errorf("invalid sum value type %t", first)
 						}
 
 						sum := i.Value
 						for _, arg := range args[1:] {
 							i, ok := arg.(*Int)
 							if !ok {
-								return nil, fmt.Errorf("invalid sum value type %t", arg)
+								return nil, errors.Errorf("invalid sum value type %t", arg)
 							}
 
 							sum -= i.Value
@@ -131,7 +131,7 @@ func NewStdEnv(program *Program) *Env {
 					Name: "==",
 					Impl: func(args []Val) (Val, error) {
 						if len(args) != 2 {
-							return nil, fmt.Errorf("expecting 2 arguments, got %d", len(args))
+							return nil, errors.Errorf("expecting 2 arguments, got %d", len(args))
 						}
 
 						arg1 := args[0]
@@ -166,11 +166,11 @@ func NewStdEnv(program *Program) *Env {
 					Impl: func(args []Val) (Val, error) {
 						cont, ok := args[0].(*Closure)
 						if !ok {
-							return nil, fmt.Errorf("invalid closure type %t", args[0])
+							return nil, errors.Errorf("invalid closure type %t", args[0])
 						}
 
 						if 1 != len(cont.Params) {
-							return nil, fmt.Errorf("invalid number of arguments for function")
+							return nil, errors.Errorf("invalid number of arguments for function")
 						}
 
 						newEnv := maps.Clone(cont.Env)

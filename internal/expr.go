@@ -2,6 +2,7 @@ package internal
 
 import (
 	"fmt"
+	"github.com/pkg/errors"
 	"github.com/scylladb/go-set/strset"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 	"strconv"
@@ -230,7 +231,7 @@ func (b *Block) Pretty(indent int) string {
 
 func fromNode(node *tree_sitter.Node, source []byte) (Expr, error) {
 	if node.HasError() {
-		return nil, fmt.Errorf("parse error")
+		return nil, errors.Errorf("parse error")
 	}
 	if node == nil {
 		return nil, nil
@@ -312,7 +313,7 @@ func fromNode(node *tree_sitter.Node, source []byte) (Expr, error) {
 		for _, param := range exprs[:len(exprs)-1] {
 			v, ok := param.(*Var)
 			if !ok {
-				return nil, fmt.Errorf("unexpected param expression type %t", param)
+				return nil, errors.Errorf("unexpected param expression type %t", param)
 			}
 			params = append(params, v.Name)
 		}
@@ -336,12 +337,12 @@ func fromNode(node *tree_sitter.Node, source []byte) (Expr, error) {
 			if prop {
 				p, ok := expr.(*Var)
 				if !ok {
-					return nil, fmt.Errorf("unexpected record lhs expression type %t", expr)
+					return nil, errors.Errorf("unexpected record lhs expression type %t", expr)
 				}
 
 				entry.Prop = p.Name
 				if names.Has(p.Name) {
-					return nil, fmt.Errorf("duplicate record prop name: %s", p.Name)
+					return nil, errors.Errorf("duplicate record prop name: %s", p.Name)
 				}
 				names.Add(p.Name)
 			} else {
@@ -367,7 +368,7 @@ func fromNode(node *tree_sitter.Node, source []byte) (Expr, error) {
 
 		v, ok := prop.(*Var)
 		if !ok {
-			return nil, fmt.Errorf("unexpected property expression type %t", prop)
+			return nil, errors.Errorf("unexpected property expression type %t", prop)
 		}
 
 		return &Prop{
@@ -387,7 +388,7 @@ func fromNode(node *tree_sitter.Node, source []byte) (Expr, error) {
 
 		v, ok := prop.(*Var)
 		if !ok {
-			return nil, fmt.Errorf("unexpected lhs expression type %t", prop)
+			return nil, errors.Errorf("unexpected lhs expression type %t", prop)
 		}
 
 		return &Prop{
@@ -415,7 +416,7 @@ func fromNode(node *tree_sitter.Node, source []byte) (Expr, error) {
 		for i+3 <= count {
 			cons := node.NamedChild(i).Utf8Text(source)
 			if cases.Has(cons) {
-				return nil, fmt.Errorf("duplciate when clause cons name: %s", cons)
+				return nil, errors.Errorf("duplciate when clause cons name: %s", cons)
 			}
 			cases.Add(cons)
 
@@ -425,7 +426,7 @@ func fromNode(node *tree_sitter.Node, source []byte) (Expr, error) {
 			}
 			v, ok := payloadVar.(*Var)
 			if !ok {
-				return nil, fmt.Errorf("unexpected when payload expression type %t", payloadVar)
+				return nil, errors.Errorf("unexpected when payload expression type %t", payloadVar)
 			}
 
 			consequence, err := fromNode(node.NamedChild(i+2), source)
@@ -492,7 +493,7 @@ func fromNode(node *tree_sitter.Node, source []byte) (Expr, error) {
 				}
 				declarations = append(declarations, importDec)
 			default:
-				return nil, fmt.Errorf("unexpected declaration name %s", child.GrammarName())
+				return nil, errors.Errorf("unexpected declaration name %s", child.GrammarName())
 			}
 		}
 
@@ -503,7 +504,7 @@ func fromNode(node *tree_sitter.Node, source []byte) (Expr, error) {
 
 		return &Block{Decs: declarations, Result: last}, nil
 	}
-	return nil, fmt.Errorf("invalid node type %s", node.GrammarName())
+	return nil, errors.Errorf("invalid node type %s", node.GrammarName())
 }
 
 func assignFromNode(node *tree_sitter.Node, source []byte) (*Assignment, error) {
@@ -514,7 +515,7 @@ func assignFromNode(node *tree_sitter.Node, source []byte) (*Assignment, error) 
 
 	v, ok := lhs.(*Var)
 	if !ok {
-		return nil, fmt.Errorf("unexpected lhs expression type %t", lhs)
+		return nil, errors.Errorf("unexpected lhs expression type %t", lhs)
 	}
 
 	rhs, err := fromNode(node.NamedChild(1), source)
@@ -536,7 +537,7 @@ func annotFromNode(node *tree_sitter.Node, source []byte) (*TypeAnnotation, erro
 
 	v, ok := lhs.(*Var)
 	if !ok {
-		return nil, fmt.Errorf("unexpected lhs expression type %t", lhs)
+		return nil, errors.Errorf("unexpected lhs expression type %t", lhs)
 	}
 
 	typ, err := typeFromNode(node.NamedChild(1), source)

@@ -2,6 +2,7 @@ package internal
 
 import (
 	"fmt"
+	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"maps"
 	"strings"
@@ -101,7 +102,7 @@ func (e *Evaluator) Eval(expr Expr, env map[string]Val) (Val, error) {
 
 			str, ok := val.(*LitStr)
 			if !ok {
-				return nil, fmt.Errorf("invalid value type for string template %t", val)
+				return nil, errors.Errorf("invalid value type for string template %t", val)
 			}
 
 			sum += str.Value
@@ -110,7 +111,7 @@ func (e *Evaluator) Eval(expr Expr, env map[string]Val) (Val, error) {
 	case *Var:
 		val, has := env[expr.Name]
 		if !has {
-			return nil, fmt.Errorf("undefined variable: %s", expr.Name)
+			return nil, errors.Errorf("undefined variable: %s", expr.Name)
 		}
 
 		return val, nil
@@ -142,11 +143,11 @@ func (e *Evaluator) Eval(expr Expr, env map[string]Val) (Val, error) {
 
 		clos, ok := fn.(*Closure)
 		if !ok {
-			return nil, fmt.Errorf("cannot apply non closure value of type %t", fn)
+			return nil, errors.Errorf("cannot apply non closure value of type %t", fn)
 		}
 
 		if len(expr.Args) != len(clos.Params) {
-			return nil, fmt.Errorf("invalid number of arguments for function %t", fn)
+			return nil, errors.Errorf("invalid number of arguments for function %t", fn)
 		}
 
 		newEnv := maps.Clone(clos.Env)
@@ -190,12 +191,12 @@ func (e *Evaluator) Eval(expr Expr, env map[string]Val) (Val, error) {
 
 		rec, ok := val.(*RecVal)
 		if !ok {
-			return nil, fmt.Errorf("invalid value type for prop parent %t", val)
+			return nil, errors.Errorf("invalid value type for prop parent %t", val)
 		}
 
 		val, has := rec.Entries[expr.Prop]
 		if !has {
-			return nil, fmt.Errorf("record does not contain prop %s", expr.Prop)
+			return nil, errors.Errorf("record does not contain prop %s", expr.Prop)
 		}
 
 		return val, nil
@@ -214,7 +215,7 @@ func (e *Evaluator) Eval(expr Expr, env map[string]Val) (Val, error) {
 
 		cons, ok := val.(*ConsVal)
 		if !ok {
-			return nil, fmt.Errorf("invalid value type for when %t", val)
+			return nil, errors.Errorf("invalid value type for when %t", val)
 		}
 
 		for _, clause := range expr.Options {
@@ -226,7 +227,7 @@ func (e *Evaluator) Eval(expr Expr, env map[string]Val) (Val, error) {
 		}
 
 		if expr.Else == nil {
-			return nil, fmt.Errorf("no when clause matches cons name %s", cons.Name)
+			return nil, errors.Errorf("no when clause matches cons name %s", cons.Name)
 		}
 
 		return e.Eval(expr.Else, env)
@@ -254,7 +255,7 @@ func (e *Evaluator) Eval(expr Expr, env map[string]Val) (Val, error) {
 		return e.Eval(expr.Result, blockEnv)
 	}
 
-	return nil, fmt.Errorf("invalid expression type: %T", expr)
+	return nil, errors.Errorf("invalid expression type: %T", expr)
 }
 
 func extend(env map[string]Val, name string, val Val) map[string]Val {

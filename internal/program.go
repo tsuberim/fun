@@ -3,12 +3,13 @@ package internal
 import (
 	"fmt"
 	tree_sitter_fun "fun/tree-sitter-fun/bindings/go"
+	"github.com/pkg/errors"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 	"os"
 	"path"
 )
 
-const RootModule = "<root>"
+const InlineModule = "<root>"
 
 type Module struct {
 	ImportPath string
@@ -27,7 +28,7 @@ type Program struct {
 	inferer     *Inferrer
 	Modules     map[string]*Module
 	env         *Env
-	currentPath string
+	importStack []string
 }
 
 func NewProgram() (*Program, error) {
@@ -40,7 +41,7 @@ func NewProgram() (*Program, error) {
 	p := &Program{
 		parser:      parser,
 		Modules:     map[string]*Module{},
-		currentPath: "",
+		importStack: nil,
 	}
 	p.evaluator = NewEvaluator(p)
 	p.inferer = NewInferrer(p)
@@ -62,21 +63,31 @@ func (p *Program) Import(importPath string) (*Module, error) {
 	return mod, nil
 }
 
+func (p *Program) currentImportPath() string {
+	if len(p.importStack) == 0 {
+		return ""
+	}
+
+	return p.importStack[len(p.importStack)-1]
+}
+
 func (p *Program) importModule(importPath string) (*Module, error) {
-	source, err := os.ReadFile(path.Join(path.Dir(p.currentPath), importPath))
+	source, err := os.ReadFile(path.Join(path.Dir(p.currentImportPath()), importPath))
+	if os.IsNotExist(err) {
+		return nil, errors.Errorf("module `%s` does not exist", importPath)
+	}
 	if err != nil {
-		return nil, err
+		return nil, errors.WithMessagef(err, "failed to read module `%s`", importPath)
 	}
 
 	return p.Run(source, importPath)
 }
 
 func (p *Program) Run(source []byte, importPath string) (*Module, error) {
-	if importPath != RootModule {
-		prevPath := p.currentPath
-		p.currentPath = importPath
+	if importPath != InlineModule {
+		p.importStack = append(p.importStack, importPath)
 		defer func() {
-			p.currentPath = prevPath
+			p.importStack = p.importStack[:len(p.importStack)-1]
 		}()
 	}
 
@@ -86,20 +97,20 @@ func (p *Program) Run(source []byte, importPath string) (*Module, error) {
 	// parse
 	expr, err := fromNode(node, source)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithMessagef(err, "failed to parse module: %s", importPath)
 	}
 
 	// type check
 	_, t, err := p.inferer.Infer(expr, p.env.Types())
 	if err != nil {
-		return nil, err
+		return nil, errors.WithMessagef(err, "failed to infer module type: %s", importPath)
 	}
 	scheme := generalize(t)
 
 	// evaluate
 	val, err := p.evaluator.Eval(expr, p.env.Values())
 	if err != nil {
-		return nil, err
+		return nil, errors.WithMessagef(err, "failed to evaluate module: %s", importPath)
 	}
 
 	return &Module{

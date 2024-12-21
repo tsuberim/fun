@@ -49,7 +49,7 @@ func (r *ReplHandler) Prompt() string {
 
 func (r *ReplHandler) Eval(buffer string) string {
 	source := []byte(buffer)
-	mod, err := r.program.Run(source, internal.RootModule)
+	mod, err := r.program.Run(source, internal.InlineModule)
 	if err != nil {
 		return fmt.Sprintf("Error: %s", err)
 	}
