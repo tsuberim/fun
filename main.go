@@ -16,6 +16,11 @@ func main() {
 
 	if len(os.Args) > 1 {
 		filename := os.Args[1]
+		if filename == "lsp" {
+			internal.LSPServer()
+			return
+		}
+
 		source, err := os.ReadFile(filename)
 		if err != nil {
 			println(err.Error())

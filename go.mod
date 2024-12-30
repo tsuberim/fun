@@ -5,12 +5,16 @@ go 1.23
 require github.com/llir/llvm v0.3.6
 
 require (
+	github.com/TobiasYin/go-lsp v0.0.0-20231106040121-c84e66f01aa4 // indirect
 	github.com/fatih/color v1.18.0 // indirect
+	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-pointer v0.0.1 // indirect
 	github.com/maxott/go-repl v0.2.4 // indirect
 	github.com/mewmew/float v0.0.0-20201204173432-505706aa38fa // indirect
+	github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421 // indirect
+	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/samber/lo v1.47.0 // indirect
 	github.com/scylladb/go-set v1.0.2 // indirect

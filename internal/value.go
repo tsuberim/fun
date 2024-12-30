@@ -44,7 +44,7 @@ func (r *RecVal) Pretty(indent int) string {
 		val := r.Entries[key]
 		entries = append(entries, fmt.Sprintf("%s: %s", key, val.Pretty(indent)))
 	}
-	return dent(indent, fmt.Sprintf("{%s}", strings.Join(entries, ",\n")))
+	return dent(indent, fmt.Sprintf("{%s}", strings.Join(entries, ", ")))
 }
 
 type ConsVal struct {
