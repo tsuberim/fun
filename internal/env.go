@@ -272,6 +272,47 @@ func NewStdEnv(program *Program) *Env {
 					},
 				},
 			},
+			"err": {
+				Type: &Scheme{
+					Forall: []string{"rest"},
+					Type: &TypeCons{
+						Name: lambdaConsName,
+						Args: []Type{
+							&TypeCons{
+								Name: strConsName,
+								Args: nil,
+							},
+							taskType(neverType, &TypeRec{
+								Entries: map[string]Type{"Err": &TypeCons{
+									Name: strConsName,
+									Args: nil,
+								}},
+								RestVar: &TypeVar{Name: "rest"},
+								Union:   true,
+							}),
+						},
+					},
+				},
+				Val: &Builtin{
+					Name: "err",
+					Impl: func(e *Evaluator, args []Val) (Val, error) {
+						if len(args) != 1 {
+							return nil, errors.Errorf("expecting 1 arguments, got %d", len(args))
+						}
+						arg := args[0]
+						str, ok := arg.(*LitStr)
+						if !ok {
+							return nil, errors.Errorf("expecting type string literal")
+						}
+						return &Builtin{
+							Name: "err_thunk",
+							Impl: func(e *Evaluator, args []Val) (Val, error) {
+								return nil, errors.Errorf(str.Value)
+							},
+						}, nil
+					},
+				},
+			},
 			"write": {
 				Type: &Scheme{
 					Forall: []string{"rest"},
