@@ -1,0 +1,67 @@
+{
+  "name": "fun-language",
+  "displayName": "Fun Language",
+  "description": "Support for the Fun programming language",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.2.0",
+    "node": ">=20.0.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "fun",
+    "functional",
+    "programming",
+    "language"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "fun",
+        "aliases": [
+          "Fun",
+          "fun"
+        ],
+        "extensions": [
+          ".fun"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "fun",
+        "scopeName": "source.fun",
+        "path": "./syntaxes/fun.tmLanguage.json",
+        "embeddedLanguages": {
+          "source.fun": "fun"
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.1",
+    "@types/node": "18.x",
+    "@types/vscode": "^1.2.0",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "eslint": "^8.56.0",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "tree-sitter": "^0.20.6",
+    "tree-sitter-fun": "file:../tree-sitter-fun"
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "name": "Fun",
+  "scopeName": "source.fun",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#constructors"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#operators"
+    },
+    {
+      "include": "#identifiers"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.fun",
+          "match": "#.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.backtick.fun",
+          "begin": "`",
+          "end": "`",
+          "patterns": [
+            {
+              "name": "constant.character.escape.fun",
+              "match": "\\{[^}]*\\}"
+            }
+          ]
+        }
+      ]
+    },
+    "constructors": {
+      "patterns": [
+        {
+          "name": "entity.name.class.fun",
+          "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.fun",
+          "match": "\\b(when|is|else|fix|import|from|True|False|Int|Lam)\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.integer.fun",
+          "match": "\\b\\d+\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "punctuation.definition.fun",
+          "match": "[\\(\\)\\[\\]\\{\\},;:\\.]"
+        },
+        {
+          "name": "keyword.operator.fun",
+          "match": "[!@$%^&*+\\-~=<>]+"
+        }
+      ]
+    },
+    "identifiers": {
+      "patterns": [
+        {
+          "name": "variable.other.fun",
+          "match": "\\b[a-z][a-zA-Z0-9_]*\\b"
+        }
+      ]
+    }
+  }
+} 
