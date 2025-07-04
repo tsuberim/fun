@@ -3,9 +3,10 @@ package main
 import (
 	"fmt"
 	"fun/internal"
-	"github.com/maxott/go-repl"
 	"log"
 	"os"
+
+	"github.com/maxott/go-repl"
 )
 
 func main() {
@@ -53,6 +54,11 @@ func (r *ReplHandler) Prompt() string {
 }
 
 func (r *ReplHandler) Eval(buffer string) string {
+	// Check for quit command
+	if buffer == "quit" || buffer == "exit" {
+		os.Exit(0)
+	}
+
 	source := []byte(buffer)
 	mod, err := r.program.Run(source, internal.InlineModule)
 	if err != nil {
