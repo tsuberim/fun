@@ -53,6 +53,8 @@ func runReadlineRepl(program *internal.Program) {
 	}
 	defer rl.Close()
 
+	fmt.Println("Type .help for REPL commands.")
+
 	var lines []string
 	for {
 		line, err := rl.Readline()
@@ -71,23 +73,43 @@ func runReadlineRepl(program *internal.Program) {
 			break
 		}
 
+		// Handle .clear command
+		if strings.TrimSpace(line) == ".clear" {
+			fmt.Print("\033[H\033[2J")
+			lines = nil
+			continue
+		}
+
+		// Handle .help command
+		if strings.TrimSpace(line) == ".help" {
+			fmt.Println(`REPL commands:
+  .help   Show this help message
+  .clear  Clear the screen
+  quit    Exit the REPL
+  exit    Exit the REPL
+
+Multiline: End a line with '\' to continue input on the next line.`)
+			lines = nil
+			continue
+		}
+
 		lines = append(lines, line)
 
-		// Check if the last line ends with backslash (incomplete)
+		// Check if the last line ends with backslash (explicit continuation)
 		if strings.TrimSpace(line) != "" && strings.HasSuffix(strings.TrimSpace(line), "\\") {
-			// Remove the backslash and continue reading
 			lines[len(lines)-1] = strings.TrimSuffix(strings.TrimSpace(line), "\\")
-			// Change prompt to indicate continuation
 			rl.SetPrompt(": ")
 			continue
 		}
 
-		// Reset prompt to normal
 		rl.SetPrompt("> ")
 
-		// Submit the input if we have any lines
 		if len(lines) > 0 {
 			input := strings.Join(lines, "\n")
+			if strings.TrimSpace(input) == "" {
+				lines = nil
+				continue
+			}
 			result := evaluateInput(program, input)
 			if result != "" {
 				fmt.Println(result)
