@@ -30,7 +30,9 @@ func main() {
 			return
 		}
 
-		println(mod.Pretty(0))
+		val, typ := program.EvalTask(mod)
+
+		println(Pretty(val, typ, 0))
 	} else {
 		runReadlineRepl(program)
 	}
@@ -115,13 +117,20 @@ Multiline: End a line with '\' to continue input on the next line.`)
 	}
 }
 
+func Pretty(val internal.Val, scheme *internal.Scheme, indent int) string {
+	return fmt.Sprintf("%s : %s", val.Pretty(indent), scheme.Pretty(indent))
+}
+
 func evaluateInput(program *internal.Program, input string) string {
 	source := []byte(input)
 	mod, err := program.Run(source, internal.InlineModule)
 	if err != nil {
 		return fmt.Sprintf("Error: %s", err)
 	}
-	result := mod.Pretty(0)
+
+	val, typ := program.EvalTask(mod)
+
+	result := Pretty(val, typ, 0)
 	if strings.TrimSpace(result) == "" {
 		return ""
 	}

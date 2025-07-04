@@ -2,10 +2,11 @@ package internal
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
-	"github.com/samber/lo"
 	"maps"
 	"strings"
+
+	"github.com/pkg/errors"
+	"github.com/samber/lo"
 )
 
 type Val interface {
@@ -20,6 +21,18 @@ func (r *RecVal) val()  {}
 func (c *ConsVal) val() {}
 func (c *Closure) val() {}
 func (c *Builtin) val() {}
+
+var unitVal = &ConsVal{
+	Name:    "Unit",
+	Payload: nil,
+}
+
+func errorVal(err error) *ConsVal {
+	return &ConsVal{
+		Name:    "Err",
+		Payload: &LitStr{Value: err.Error()},
+	}
+}
 
 type ListVal struct {
 	Items []Val
@@ -71,7 +84,7 @@ func (c *Closure) Pretty(indent int) string {
 
 type Builtin struct {
 	Name string
-	Impl func(args []Val) (Val, error)
+	Impl func(e *Evaluator, args []Val) (Val, error)
 }
 
 func (b *Builtin) Pretty(indent int) string {
@@ -127,39 +140,17 @@ func (e *Evaluator) Eval(expr Expr, env map[string]Val) (Val, error) {
 			return nil, err
 		}
 
-		if builtin, ok := fn.(*Builtin); ok {
-			var args []Val
-			for _, arg := range expr.Args {
-				val, err := e.Eval(arg, env)
-				if err != nil {
-					return nil, err
-				}
-
-				args = append(args, val)
-			}
-
-			return builtin.Impl(args)
-		}
-
-		clos, ok := fn.(*Closure)
-		if !ok {
-			return nil, errors.Errorf("cannot apply non closure value of type %t", fn)
-		}
-
-		if len(expr.Args) != len(clos.Params) {
-			return nil, errors.Errorf("invalid number of arguments for function %t", fn)
-		}
-
-		newEnv := maps.Clone(clos.Env)
-		for i, arg := range expr.Args {
+		var args []Val
+		for _, arg := range expr.Args {
 			val, err := e.Eval(arg, env)
 			if err != nil {
 				return nil, err
 			}
-			newEnv[clos.Params[i]] = val
+
+			args = append(args, val)
 		}
 
-		return e.Eval(clos.Body, newEnv)
+		return e.evalFn(fn, args)
 	case *List:
 		var vals []Val
 		for _, item := range expr.Items {
@@ -256,6 +247,28 @@ func (e *Evaluator) Eval(expr Expr, env map[string]Val) (Val, error) {
 	}
 
 	return nil, errors.Errorf("invalid expression type: %T", expr)
+}
+
+func (e *Evaluator) evalFn(fn Val, args []Val) (Val, error) {
+	if builtin, ok := fn.(*Builtin); ok {
+		return builtin.Impl(e, args)
+	}
+
+	clos, ok := fn.(*Closure)
+	if !ok {
+		return nil, errors.Errorf("cannot apply non closure value of type %t", fn)
+	}
+
+	if len(args) != len(clos.Params) {
+		return nil, errors.Errorf("invalid number of arguments for function %t", fn)
+	}
+
+	newEnv := maps.Clone(clos.Env)
+	for i, arg := range args {
+		newEnv[clos.Params[i]] = arg
+	}
+
+	return e.Eval(clos.Body, newEnv)
 }
 
 func extend(env map[string]Val, name string, val Val) map[string]Val {

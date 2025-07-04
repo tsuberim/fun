@@ -1,7 +1,6 @@
 package internal
 
 import (
-	"fmt"
 	tree_sitter_fun "fun/tree-sitter-fun/bindings/go"
 	"os"
 	"path"
@@ -17,10 +16,6 @@ type Module struct {
 	Expr
 	Val
 	Type *Scheme
-}
-
-func (m *Module) Pretty(indent int) string {
-	return fmt.Sprintf("%s : %s", m.Val.Pretty(0), m.Type.Pretty(0))
 }
 
 type Program struct {
@@ -120,4 +115,27 @@ func (p *Program) Run(source []byte, importPath string) (*Module, error) {
 		Val:        val,
 		Type:       scheme,
 	}, nil
+}
+
+func (e *Evaluator) EvalTask(val Val, scheme *Scheme) (Val, *Scheme) {
+	for {
+		if cons, ok := scheme.Type.(*TypeCons); ok && cons.Name == taskConsName {
+			resultType := cons.Args[0]
+			errType := cons.Args[1]
+
+			res, err := e.evalFn(val, nil)
+			if err != nil {
+				return errorVal(err), generalize(errType)
+			}
+			val = res
+			scheme = generalize(resultType)
+			continue
+		}
+
+		return val, scheme
+	}
+}
+
+func (p *Program) EvalTask(m *Module) (Val, *Scheme) {
+	return p.evaluator.EvalTask(m.Val, m.Type)
 }

@@ -123,11 +123,11 @@ block
 ===
 (
     a = 4
-    b = a
+    b <- a
     b
 )
 ---
-(source_file (block (assign (var) (int)) (assign (var) (var)) (var)))
+(source_file (block (assign (var) (int)) (bind (var) (var)) (var)))
 
 
 ===
@@ -144,7 +144,6 @@ import foo from `foo`
 foo
 ---
 (source_file (import (var) (lit_str))  (var))
-
 
 
 

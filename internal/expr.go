@@ -2,11 +2,12 @@ package internal
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
+
 	"github.com/pkg/errors"
 	"github.com/scylladb/go-set/strset"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
-	"strconv"
-	"strings"
 )
 
 func dent(count int, str string) string {
@@ -44,7 +45,7 @@ type LitStr struct {
 }
 
 func (s *LitStr) Pretty(indent int) string {
-	return dent(indent, s.Value)
+	return "`" + dent(indent, s.Value) + "`"
 }
 
 type Str struct {
@@ -470,7 +471,8 @@ func fromNode(node *tree_sitter.Node, source []byte) (Expr, error) {
 		return &List{Items: exprs}, nil
 	case "annot":
 	case "block", "source_file":
-		var declarations []Declaration
+		expr := &Block{}
+		block := expr
 		children := node.NamedChildren(node.Walk())
 		for _, child := range children[:len(children)-1] {
 			switch child.GrammarName() {
@@ -479,19 +481,37 @@ func fromNode(node *tree_sitter.Node, source []byte) (Expr, error) {
 				if err != nil {
 					return nil, err
 				}
-				declarations = append(declarations, assign)
+				block.Decs = append(block.Decs, assign)
+			case "bind":
+				assign, err := assignFromNode(&child, source)
+				if err != nil {
+					return nil, err
+				}
+
+				newBlock := &Block{}
+				block.Result = &App{
+					Fn: &Var{Name: "flat_map"},
+					Args: []Expr{
+						assign.Value,
+						&Lam{
+							Params: []string{assign.Name},
+							Body:   newBlock,
+						},
+					},
+				}
+				block = newBlock
 			case "annot":
 				annot, err := annotFromNode(&child, source)
 				if err != nil {
 					return nil, err
 				}
-				declarations = append(declarations, annot)
+				block.Decs = append(block.Decs, annot)
 			case "import":
 				importDec, err := importFromNode(&child, source)
 				if err != nil {
 					return nil, err
 				}
-				declarations = append(declarations, importDec)
+				block.Decs = append(block.Decs, importDec)
 			default:
 				return nil, errors.Errorf("unexpected declaration name %s", child.GrammarName())
 			}
@@ -501,8 +521,11 @@ func fromNode(node *tree_sitter.Node, source []byte) (Expr, error) {
 		if err != nil {
 			return nil, err
 		}
-
-		return &Block{Decs: declarations, Result: last}, nil
+		block.Result = &App{
+			Fn:   &Var{Name: "ok"},
+			Args: []Expr{last},
+		}
+		return expr, nil
 	}
 	return nil, errors.Errorf("invalid node type %s", node.GrammarName())
 }

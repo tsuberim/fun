@@ -1,8 +1,10 @@
 package internal
 
 import (
-	"github.com/pkg/errors"
 	"maps"
+	"os"
+
+	"github.com/pkg/errors"
 )
 
 type Item struct {
@@ -28,6 +30,23 @@ func (e *Env) Types() *TypeEnv {
 		result.Types[k] = v.Type
 	}
 	return result
+}
+
+func taskType(result Type, errType Type) *TypeCons {
+	return &TypeCons{
+		Name: taskConsName,
+		Args: []Type{
+			result,
+			errType,
+		},
+	}
+}
+
+func lamType(args ...Type) *TypeCons {
+	return &TypeCons{
+		Name: lambdaConsName,
+		Args: args,
+	}
 }
 
 func NewStdEnv(program *Program) *Env {
@@ -56,7 +75,7 @@ func NewStdEnv(program *Program) *Env {
 				},
 				Val: &Builtin{
 					Name: "+",
-					Impl: func(args []Val) (Val, error) {
+					Impl: func(e *Evaluator, args []Val) (Val, error) {
 						sum := 0
 						for _, arg := range args {
 							i, ok := arg.(*Int)
@@ -94,7 +113,7 @@ func NewStdEnv(program *Program) *Env {
 				},
 				Val: &Builtin{
 					Name: "-",
-					Impl: func(args []Val) (Val, error) {
+					Impl: func(e *Evaluator, args []Val) (Val, error) {
 						first := args[0]
 						i, ok := first.(*Int)
 						if !ok {
@@ -129,7 +148,7 @@ func NewStdEnv(program *Program) *Env {
 				},
 				Val: &Builtin{
 					Name: "==",
-					Impl: func(args []Val) (Val, error) {
+					Impl: func(e *Evaluator, args []Val) (Val, error) {
 						if len(args) != 2 {
 							return nil, errors.Errorf("expecting 2 arguments, got %d", len(args))
 						}
@@ -163,7 +182,7 @@ func NewStdEnv(program *Program) *Env {
 				},
 				Val: &Builtin{
 					Name: "fix",
-					Impl: func(args []Val) (Val, error) {
+					Impl: func(e *Evaluator, args []Val) (Val, error) {
 						cont, ok := args[0].(*Closure)
 						if !ok {
 							return nil, errors.Errorf("invalid closure type %t", args[0])
@@ -177,6 +196,136 @@ func NewStdEnv(program *Program) *Env {
 						result, err := program.evaluator.Eval(cont.Body, newEnv)
 						newEnv[cont.Params[0]] = result
 						return result, err
+					},
+				},
+			},
+			"flat_map": {
+				Type: &Scheme{
+					Forall: []string{"a", "b", "e"},
+					Type: &TypeCons{
+						Name: lambdaConsName,
+						Args: []Type{
+							taskType(&TypeVar{Name: "a"}, &TypeVar{Name: "e"}),
+							lamType(&TypeVar{Name: "a"}, taskType(&TypeVar{Name: "b"}, &TypeVar{Name: "e"})),
+							taskType(&TypeVar{Name: "b"}, &TypeVar{Name: "e"}),
+						},
+					},
+				},
+				Val: &Builtin{
+					Name: "flat_map",
+					Impl: func(e *Evaluator, args []Val) (Val, error) {
+						task := args[0]
+						mapper := args[1]
+						return &Builtin{
+							Name: "flat_map_thunk",
+							Impl: func(e *Evaluator, args []Val) (Val, error) {
+								// execute first task
+								res, err := e.evalFn(task, nil)
+								if err != nil {
+									return nil, err
+								}
+								// map the task result to consequent task
+								outTask, err := e.evalFn(mapper, []Val{res})
+								if err != nil {
+									return nil, err
+								}
+								// execute the consequent task
+								out, err := e.evalFn(outTask, nil)
+								if err != nil {
+									return nil, err
+								}
+
+								return out, nil
+							},
+						}, nil
+					},
+				},
+			},
+			"ok": {
+				Type: &Scheme{
+					Forall: []string{"a", "rest"},
+					Type: &TypeCons{
+						Name: lambdaConsName,
+						Args: []Type{
+							&TypeVar{Name: "a"},
+							taskType(&TypeVar{Name: "a"}, &TypeRec{
+								Entries: map[string]Type{},
+								RestVar: &TypeVar{Name: "rest"},
+								Union:   true,
+							}),
+						},
+					},
+				},
+				Val: &Builtin{
+					Name: "ok",
+					Impl: func(e *Evaluator, args []Val) (Val, error) {
+						if len(args) != 1 {
+							return nil, errors.Errorf("expecting 1 arguments, got %d", len(args))
+						}
+						arg := args[0]
+						return &Builtin{
+							Name: "ok_thunk",
+							Impl: func(e *Evaluator, args []Val) (Val, error) {
+								return arg, nil
+							},
+						}, nil
+					},
+				},
+			},
+			"write": {
+				Type: &Scheme{
+					Forall: []string{"rest"},
+					Type: &TypeCons{
+						Name: lambdaConsName,
+						Args: []Type{
+							&TypeCons{
+								Name: strConsName,
+								Args: nil,
+							},
+							&TypeCons{
+								Name: strConsName,
+								Args: nil,
+							},
+							taskType(
+								unitType,
+								&TypeRec{
+									Entries: map[string]Type{"Err": &TypeCons{
+										Name: strConsName,
+										Args: nil,
+									}},
+									RestVar: &TypeVar{Name: "rest"},
+									Union:   true,
+								},
+							),
+						},
+					},
+				},
+				Val: &Builtin{
+					Name: "write",
+					Impl: func(e *Evaluator, args []Val) (Val, error) {
+						if len(args) != 2 {
+							return nil, errors.Errorf("expecting 2 arguments, got %d", len(args))
+						}
+						filename, ok := args[0].(*LitStr)
+						if !ok {
+							return nil, errors.Errorf("invalid filename type %t", args[1])
+						}
+
+						content, ok := args[1].(*LitStr)
+						if !ok {
+							return nil, errors.Errorf("invalid content type %t", args[0])
+						}
+
+						return &Builtin{
+							Name: "write_thunk",
+							Impl: func(e *Evaluator, args []Val) (Val, error) {
+								err := os.WriteFile(filename.Value, []byte(content.Value), 0644)
+								if err != nil {
+									return nil, err
+								}
+								return unitVal, nil
+							},
+						}, nil
 					},
 				},
 			},

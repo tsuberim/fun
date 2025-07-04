@@ -14,6 +14,7 @@ import (
 
 const intConsName = "Int"
 const strConsName = "Str"
+const taskConsName = "Task"
 const lambdaConsName = "Lam"
 const listConsName = "List"
 
@@ -755,6 +756,12 @@ var unitType = &TypeRec{
 	Entries: map[string]Type{},
 	RestVar: nil,
 	Union:   false,
+}
+
+var neverType = &TypeRec{
+	Entries: map[string]Type{},
+	RestVar: nil,
+	Union:   true,
 }
 
 var boolType = &TypeRec{

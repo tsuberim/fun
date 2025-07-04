@@ -124,7 +124,7 @@
     },
     "sym": {
       "type": "PATTERN",
-      "value": "[!@$%^&*+\\-~=]+"
+      "value": "[!@$%^&*+\\-~><=]+"
     },
     "app": {
       "type": "PREC",
@@ -593,6 +593,23 @@
         }
       ]
     },
+    "bind": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "var"
+        },
+        {
+          "type": "STRING",
+          "value": "<-"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "_expr"
+        }
+      ]
+    },
     "annot": {
       "type": "SEQ",
       "members": [
@@ -645,6 +662,10 @@
         {
           "type": "SYMBOL",
           "name": "assign"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "bind"
         },
         {
           "type": "SYMBOL",
