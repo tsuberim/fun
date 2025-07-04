@@ -3,10 +3,11 @@ package internal
 import (
 	"fmt"
 	tree_sitter_fun "fun/tree-sitter-fun/bindings/go"
-	"github.com/pkg/errors"
-	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 	"os"
 	"path"
+
+	"github.com/pkg/errors"
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
 const InlineModule = "<root>"
