@@ -521,9 +521,13 @@ func fromNode(node *tree_sitter.Node, source []byte) (Expr, error) {
 		if err != nil {
 			return nil, err
 		}
-		block.Result = &App{
-			Fn:   &Var{Name: "ok"},
-			Args: []Expr{last},
+		if expr != block {
+			block.Result = &App{
+				Fn:   &Var{Name: "ok"},
+				Args: []Expr{last},
+			}
+		} else {
+			block.Result = last
 		}
 		return expr, nil
 	}

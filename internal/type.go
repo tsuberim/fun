@@ -667,7 +667,7 @@ func (i *Inferrer) Infer(expr Expr, env *TypeEnv) (subst *Subst, typ Type, err e
 				if err != nil {
 					return nil, nil, err
 				}
-
+				
 				if scheme, has := env.Types[dec.Name]; has {
 					t := i.instantiate(mod.Type)
 					s, err := i.unify(i.instantiate(scheme), t)
