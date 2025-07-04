@@ -2,14 +2,15 @@ package internal
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
-	"github.com/samber/lo"
-	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 	"maps"
 	"sort"
 	"strings"
+
+	"github.com/pkg/errors"
+	"github.com/samber/lo"
+	"github.com/scylladb/go-set/strset"
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
-import "github.com/scylladb/go-set/strset"
 
 const intConsName = "Int"
 const strConsName = "Str"
@@ -580,7 +581,7 @@ func (i *Inferrer) Infer(expr Expr, env *TypeEnv) (subst *Subst, typ Type, err e
 			}
 			subst = subst.compose(s)
 
-			expectedValueType.Entries[clause.ConsName] = i.freshVar()
+			expectedValueType.Entries[clause.ConsName] = fresh
 
 			resultType = resultType.apply(subst)
 			s, err = i.unify(resultType, t.apply(subst))
@@ -619,6 +620,11 @@ func (i *Inferrer) Infer(expr Expr, env *TypeEnv) (subst *Subst, typ Type, err e
 		if err != nil {
 			return nil, nil, err
 		}
+		fmt.Println(valueType.Pretty(0))
+		fmt.Println(expectedValueType.Pretty(0))
+		fmt.Println(resultType.Pretty(0))
+		fmt.Println(s)
+		subst = subst.compose(s)
 
 		return subst, resultType.apply(subst), nil
 	case *Block:
