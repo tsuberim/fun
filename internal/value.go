@@ -22,9 +22,8 @@ func (c *ConsVal) val() {}
 func (c *Closure) val() {}
 func (c *Builtin) val() {}
 
-var unitVal = &ConsVal{
-	Name:    "Unit",
-	Payload: nil,
+var unitVal = &RecVal{
+	Entries: nil,
 }
 
 func errorVal(err error) *ConsVal {
